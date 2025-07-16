@@ -83,34 +83,12 @@ const GolfMajorPool = () => {
     { name: 'Shane Lowry' }, { name: 'Si Woo Kim' }, { name: 'Tyrrell Hatton' }
   ];
 
-// Tournament logos mapping - Simple SVG icons
+// Tournament logos mapping - Local images
 const tournamentLogos: Record<string, string> = {
-  'masters-2025': 'data:image/svg+xml;base64,' + btoa(`
-    <svg width="48" height="48" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="24" cy="24" r="20" fill="#006747" stroke="#FFD700" stroke-width="2"/>
-      <text x="24" y="28" text-anchor="middle" fill="#FFD700" font-family="serif" font-size="8" font-weight="bold">MASTERS</text>
-    </svg>
-  `),
-  'pga-championship-2025': 'data:image/svg+xml;base64,' + btoa(`
-    <svg width="48" height="48" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
-      <rect x="4" y="4" width="40" height="40" fill="#003366" rx="4"/>
-      <text x="24" y="28" text-anchor="middle" fill="#FFD700" font-family="sans-serif" font-size="10" font-weight="bold">PGA</text>
-    </svg>
-  `),
-  'us-open-2025': 'data:image/svg+xml;base64,' + btoa(`
-    <svg width="48" height="48" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="24" cy="24" r="20" fill="#1F2937" stroke="#3B82F6" stroke-width="2"/>
-      <text x="24" y="20" text-anchor="middle" fill="#3B82F6" font-family="sans-serif" font-size="6" font-weight="bold">US</text>
-      <text x="24" y="30" text-anchor="middle" fill="#3B82F6" font-family="sans-serif" font-size="6" font-weight="bold">OPEN</text>
-    </svg>
-  `),
-  'british-open-2025': 'data:image/svg+xml;base64,' + btoa(`
-    <svg width="48" height="48" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
-      <rect x="4" y="4" width="40" height="40" fill="#8B4513" rx="4"/>
-      <text x="24" y="20" text-anchor="middle" fill="#FFD700" font-family="serif" font-size="6" font-weight="bold">THE</text>
-      <text x="24" y="30" text-anchor="middle" fill="#FFD700" font-family="serif" font-size="6" font-weight="bold">OPEN</text>
-    </svg>
-  `),
+  'masters-2025': '/images/logos/masters-logo.png',
+  'pga-championship-2025': '/images/logos/pga-championship-logo.png',
+  'us-open-2025': '/images/logos/us-open-logo.png',
+  'british-open-2025': '/images/logos/british-open-logo.png',
 };
   // Load tournaments from database
   useEffect(() => {
