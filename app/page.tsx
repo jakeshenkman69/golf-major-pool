@@ -229,22 +229,73 @@ const GolfMajorPool = () => {
   };
 
   const saveTournamentData = async (parValue?: number) => {
-    if (!selectedTournament) return;
+    if (!selectedTournament) {
+      console.log('No tournament selected, cannot save');
+      return;
+    }
 
     // Use the passed par value if provided, otherwise use currentPar
     const parToSave = parValue !== undefined ? parValue : currentPar;
+    
+    console.log('Saving tournament data:', {
+      tournament_key: selectedTournament,
+      name: tournaments[selectedTournament]?.name,
+      par: parToSave,
+      parValue,
+      currentPar
+    });
 
     try {
-      await supabase
+      const dataToSave = {
+        tournament_key: selectedTournament,
+        name: tournaments[selectedTournament]?.name || 'Untitled Tournament',
+        golfers,
+        tiers,
+        par: parToSave,
+        updated_at: new Date().toISOString()
+      };
+
+      console.log('Data being sent to Supabase:', dataToSave);
+
+      // Try upsert first
+      let { data, error } = await supabase
         .from('tournaments')
-        .upsert({
-          tournament_key: selectedTournament,
-          name: tournaments[selectedTournament]?.name,
-          golfers,
-          tiers,
-          par: parToSave,
-          updated_at: new Date().toISOString()
-        });
+        .upsert(dataToSave)
+        .select();
+
+      // If upsert fails, try update then insert approach
+      if (error) {
+        console.log('Upsert failed, trying update/insert approach:', error);
+        
+        // Try to update first
+        const { data: updateData, error: updateError } = await supabase
+          .from('tournaments')
+          .update(dataToSave)
+          .eq('tournament_key', selectedTournament)
+          .select();
+
+        if (updateError || !updateData || updateData.length === 0) {
+          console.log('Update failed or no rows affected, trying insert:', updateError);
+          
+          // If update fails, try insert
+          const { data: insertData, error: insertError } = await supabase
+            .from('tournaments')
+            .insert(dataToSave)
+            .select();
+
+          if (insertError) {
+            console.error('Insert also failed:', insertError);
+            alert(`Error saving tournament: ${insertError.message}`);
+            return;
+          }
+          
+          data = insertData;
+        } else {
+          data = updateData;
+        }
+      }
+
+      console.log('Supabase response:', data);
       
       // Update the local tournaments state with the new par value
       setTournaments(prev => ({
@@ -254,8 +305,11 @@ const GolfMajorPool = () => {
           par: parToSave
         }
       }));
+
+      console.log('Tournament data saved successfully');
     } catch (error) {
       console.error('Error saving tournament data:', error);
+      alert(`Unexpected error: ${error.message}`);
     }
   };
 
@@ -765,8 +819,10 @@ const GolfMajorPool = () => {
                         value={currentPar}
                         onChange={async (e) => {
                           const newPar = parseInt(e.target.value) || 72;
+                          console.log('Par changing from', currentPar, 'to', newPar);
                           setCurrentPar(newPar);
                           // Auto-save when par changes, passing the new value directly
+                          console.log('Calling saveTournamentData with par:', newPar);
                           await saveTournamentData(newPar);
                         }}
                         min="68"
