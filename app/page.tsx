@@ -565,11 +565,11 @@ const GolfMajorPool = () => {
       <select 
         value={selectedGolfer || ''} 
         onChange={(e) => onSelect(tierName, e.target.value)}
-        className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 text-base min-h-[44px]"
+        className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 text-base min-h-[44px] text-gray-900 bg-white"
       >
-        <option value="">Select a golfer...</option>
+        <option value="" className="text-gray-500">Select a golfer...</option>
         {golfers.map(golfer => (
-          <option key={golfer.name} value={golfer.name}>
+          <option key={golfer.name} value={golfer.name} className="text-gray-900">
             {golfer.name}
           </option>
         ))}
@@ -589,9 +589,9 @@ const GolfMajorPool = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-3 sm:p-6">
+    <div className="min-h-screen bg-gray-50 p-3 sm:p-6 text-gray-900" style={{color: '#111827', backgroundColor: '#f9fafb'}}>
       <div className="max-w-7xl mx-auto">
-        <div className="bg-white rounded-lg shadow-lg p-4 sm:p-6">
+        <div className="bg-white rounded-lg shadow-lg p-4 sm:p-6 text-gray-900" style={{color: '#111827', backgroundColor: '#ffffff'}}>
           {/* Header */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
             <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
@@ -608,11 +608,11 @@ const GolfMajorPool = () => {
                     setSelectedTournament(e.target.value);
                     setCurrentPar(tournaments[e.target.value]?.par || 72);
                   }}
-                  className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-sm sm:text-base min-h-[44px]"
+                  className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-sm sm:text-base min-h-[44px] text-gray-900"
                 >
-                  <option value="">Select Tournament</option>
+                  <option value="" className="text-gray-500">Select Tournament</option>
                   {Object.entries(tournaments).map(([key, tournament]) => (
-                    <option key={key} value={key}>
+                    <option key={key} value={key} className="text-gray-900">
                       {tournament.name}
                     </option>
                   ))}
@@ -736,7 +736,7 @@ const GolfMajorPool = () => {
                       onChange={(e) => setPasswordInput(e.target.value)}
                       onKeyPress={(e) => e.key === 'Enter' && handlePasswordSubmit()}
                       placeholder="Enter password"
-                      className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 mb-4 text-base"
+                      className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 mb-4 text-base text-gray-900 bg-white placeholder-gray-500"
                       autoFocus
                     />
                     <div className="flex flex-col sm:flex-row justify-end gap-2">
@@ -828,7 +828,7 @@ const GolfMajorPool = () => {
                         }}
                         min="68"
                         max="76"
-                        className="w-20 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-500 text-center"
+                        className="w-20 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-500 text-center text-gray-900 bg-white"
                       />
                       <span className="text-sm text-yellow-600">
                         (Missed cut penalty: {currentPar + 8} per round)
@@ -875,7 +875,7 @@ const GolfMajorPool = () => {
                           placeholder="Player Name"
                           value={newPlayer.name}
                           onChange={(e) => setNewPlayer({ ...newPlayer, name: e.target.value })}
-                          className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-green-500 text-base min-h-[44px]"
+                          className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-green-500 text-base min-h-[44px] text-gray-900 bg-white placeholder-gray-500"
                         />
                       </div>
                       
@@ -1060,7 +1060,7 @@ const GolfMajorPool = () => {
                   {Object.keys(editingScores).length > 0 && (
                     <div className="bg-white rounded-lg shadow overflow-hidden">
                       <div className="overflow-x-auto">
-                        <table className="w-full">
+                        <table className="w-full bg-white text-gray-900">
                           <thead className="bg-gray-50">
                             <tr>
                               <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -1109,7 +1109,7 @@ const GolfMajorPool = () => {
                                           newRounds[index] = e.target.value === '' ? null : e.target.value;
                                           updateGolferScore(golferName, 'rounds', newRounds);
                                         }}
-                                        className="w-12 sm:w-16 px-1 sm:px-2 py-1 border rounded text-center focus:ring-2 focus:ring-blue-500 text-sm"
+                                        className="w-12 sm:w-16 px-1 sm:px-2 py-1 border rounded text-center focus:ring-2 focus:ring-blue-500 text-sm text-gray-900 bg-white"
                                         min="60"
                                         max="90"
                                         placeholder="-"
@@ -1177,7 +1177,7 @@ const GolfMajorPool = () => {
                   {leaderboardResults.length > 0 && (
                     <div className="bg-white rounded-lg shadow overflow-hidden">
                       <div className="overflow-x-auto">
-                        <table className="w-full">
+                        <table className="w-full bg-white text-gray-900">
                           <thead className="bg-gray-50">
                             <tr>
                               <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
