@@ -41,6 +41,7 @@ type TournamentData = {
   tiers: TierData;
   players: Player[];
   scores: Record<string, ScoreData>;
+  par: number;
 };
 
 type NewPlayer = {
@@ -65,6 +66,7 @@ const GolfMajorPool = () => {
   const [showPasswordPrompt, setShowPasswordPrompt] = useState<boolean>(false);
   const [passwordInput, setPasswordInput] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
+  const [currentPar, setCurrentPar] = useState<number>(72);
 
   // Sample data for new tournaments
   const sampleGolfers: Golfer[] = [
@@ -117,7 +119,8 @@ const GolfMajorPool = () => {
             tier1: [], tier2: [], tier3: [], tier4: [], tier5: [], tier6: []
           },
           players: [],
-          scores: {}
+          scores: {},
+          par: tournament.par || 72
         };
       });
 
@@ -156,45 +159,50 @@ const GolfMajorPool = () => {
 
       if (scoresError) throw scoresError;
 
-      // Process scores into the format our app expects
-const scoresMap: Record<string, ScoreData> = {};
-scoresData?.forEach(score => {
-  // Handle missed cut players
-  if (!score.made_cut) {
-    // For missed cut, ensure rounds 3 and 4 are set to 80
-    const rounds = [...(score.rounds || [null, null, null, null])];
-    rounds[2] = 80; // Round 3
-    rounds[3] = 80; // Round 4
-    
-    const totalScore = rounds.reduce((sum: number, round: number | null) => sum + (round || 0), 0);
-    const actualRounds = rounds.filter(r => r !== null).length;
-    const toPar = totalScore - (72 * 4); // Always calculate against par for 4 rounds for missed cut
-    
-    scoresMap[score.golfer_name] = {
-      rounds: rounds,
-      total: totalScore,
-      toPar,
-      madeCut: false,
-      completedRounds: actualRounds
-    };
-  } else {
-    // For players who made the cut, calculate normally
-    const rounds = score.rounds || [null, null, null, null];
-    const validRounds = rounds.filter((r: any) => r !== null);
-    const totalScore = validRounds.reduce((sum: number, round: number) => sum + round, 0);
-    const completedRounds = validRounds.length;
-    const par = 72 * completedRounds;
-    const toPar = completedRounds > 0 ? totalScore - par : 0;
+      // Set the current par for this tournament
+      const tournamentPar = tournamentData.par || 72;
+      setCurrentPar(tournamentPar);
 
-    scoresMap[score.golfer_name] = {
-      rounds: rounds,
-      total: totalScore,
-      toPar,
-      madeCut: true,
-      completedRounds
-    };
-  }
-});
+      // Process scores into the format our app expects
+      const scoresMap: Record<string, ScoreData> = {};
+      scoresData?.forEach(score => {
+        // Handle missed cut players
+        if (!score.made_cut) {
+          // For missed cut, ensure rounds 3 and 4 are set to par + 8
+          const rounds = [...(score.rounds || [null, null, null, null])];
+          const penaltyScore = tournamentPar + 8;
+          rounds[2] = penaltyScore; // Round 3
+          rounds[3] = penaltyScore; // Round 4
+          
+          const totalScore = rounds.reduce((sum: number, round: number | null) => sum + (round || 0), 0);
+          const actualRounds = rounds.filter(r => r !== null).length;
+          const toPar = totalScore - (tournamentPar * 4); // Calculate against par for 4 rounds
+          
+          scoresMap[score.golfer_name] = {
+            rounds: rounds,
+            total: totalScore,
+            toPar,
+            madeCut: false,
+            completedRounds: actualRounds
+          };
+        } else {
+          // For players who made the cut, calculate normally
+          const rounds = score.rounds || [null, null, null, null];
+          const validRounds = rounds.filter((r: any) => r !== null);
+          const totalScore = validRounds.reduce((sum: number, round: number) => sum + round, 0);
+          const completedRounds = validRounds.length;
+          const par = tournamentPar * completedRounds;
+          const toPar = completedRounds > 0 ? totalScore - par : 0;
+
+          scoresMap[score.golfer_name] = {
+            rounds: rounds,
+            total: totalScore,
+            toPar,
+            madeCut: true,
+            completedRounds
+          };
+        }
+      });
 
       // Set all the data
       setGolfers(tournamentData.golfers || []);
@@ -231,6 +239,7 @@ scoresData?.forEach(score => {
           name: tournaments[selectedTournament]?.name,
           golfers,
           tiers,
+          par: currentPar,
           updated_at: new Date().toISOString()
         });
     } catch (error) {
@@ -309,10 +318,11 @@ scoresData?.forEach(score => {
         
         // Ensure missed cut players have penalty scores
         if (scoreData.madeCut === false) {
-          rounds[2] = 80; // Round 3
-          rounds[3] = 80; // Round 4
+          const penaltyScore = currentPar + 8;
+          rounds[2] = penaltyScore; // Round 3
+          rounds[3] = penaltyScore; // Round 4
         }
-  
+
         scoreUpdates.push({
           tournament_key: selectedTournament,
           golfer_name: golferName,
@@ -321,13 +331,13 @@ scoresData?.forEach(score => {
           updated_at: new Date().toISOString()
         });
       });
-  
+
       const { error } = await supabase
         .from('scores')
         .upsert(scoreUpdates, { onConflict: 'tournament_key,golfer_name' });
-  
+
       if (error) throw error;
-  
+
       // Reload scores to reflect changes
       await loadTournamentData(selectedTournament);
       setEditingScores({});
@@ -428,12 +438,13 @@ scoresData?.forEach(score => {
         
         if (!score.madeCut) {
           const rounds = [...score.rounds];
-          rounds[2] = 80;
-          rounds[3] = 80;
+          const penaltyScore = currentPar + 8;
+          rounds[2] = penaltyScore;
+          rounds[3] = penaltyScore;
           const cutScore = rounds.reduce((sum: number, round) => sum + (round || 0), 0);
           return {
             name: golferName,
-            toPar: cutScore - (72 * 4),
+            toPar: cutScore - (currentPar * 4),
             madeCut: false,
             total: cutScore,
             rounds: rounds
@@ -528,6 +539,7 @@ scoresData?.forEach(score => {
                   onChange={(e) => {
                     saveTournamentData();
                     setSelectedTournament(e.target.value);
+                    setCurrentPar(tournaments[e.target.value]?.par || 72);
                   }}
                   className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-sm sm:text-base min-h-[44px]"
                 >
@@ -636,7 +648,7 @@ scoresData?.forEach(score => {
                       {tournaments[selectedTournament]?.name}
                     </h2>
                     <p className="text-xs sm:text-sm text-blue-600">
-                      {players.length} players • {golfers.length} golfers
+                      {players.length} players • {golfers.length} golfers • Par {currentPar}
                     </p>
                   </div>
                   <div className="text-xs sm:text-sm text-blue-600">
@@ -726,6 +738,36 @@ scoresData?.forEach(score => {
                     </div>
                   </div>
 
+                  {/* Par Setting Section */}
+                  <div className="bg-yellow-50 p-3 sm:p-4 rounded-lg">
+                    <h3 className="font-semibold mb-2 text-yellow-800 text-sm sm:text-base">Tournament Par Setting</h3>
+                    <p className="text-xs sm:text-sm text-yellow-600 mb-3">
+                      Set the par for each round of this tournament. This affects all scoring calculations.
+                    </p>
+                    <div className="flex items-center gap-4">
+                      <label className="text-sm font-medium text-yellow-800">
+                        Par per round:
+                      </label>
+                      <input
+                        type="number"
+                        value={currentPar}
+                        onChange={(e) => setCurrentPar(parseInt(e.target.value) || 72)}
+                        min="68"
+                        max="76"
+                        className="w-20 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-500 text-center"
+                      />
+                      <span className="text-sm text-yellow-600">
+                        (Missed cut penalty: {currentPar + 8} per round)
+                      </span>
+                    </div>
+                    <div className="mt-3 p-2 sm:p-3 bg-yellow-100 border border-yellow-200 rounded">
+                      <p className="text-xs text-yellow-800">
+                        <strong>Note:</strong> Changing par will affect all existing scores. 
+                        Make sure to set this before entering any scores for the tournament.
+                      </p>
+                    </div>
+                  </div>
+
                   {/* Tiers Display */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                     {Object.entries(tiers).map(([tierName, tierGolfers], index) => (
@@ -804,12 +846,13 @@ scoresData?.forEach(score => {
                         
                         if (!score.madeCut) {
                           const rounds = [...score.rounds];
-                          rounds[2] = 80;
-                          rounds[3] = 80;
+                          const penaltyScore = currentPar + 8;
+                          rounds[2] = penaltyScore;
+                          rounds[3] = penaltyScore;
                           const cutScore = rounds.reduce((sum: number, round) => sum + (round || 0), 0);
                           return {
                             name: golferName,
-                            toPar: cutScore - (72 * 4),
+                            toPar: cutScore - (currentPar * 4),
                             status: 'MC',
                             rounds: rounds
                           };
@@ -976,7 +1019,7 @@ scoresData?.forEach(score => {
                               const validRounds = editing.rounds.filter(r => r !== null && r !== '');
                               const total = validRounds.reduce((sum: number, round) => sum + (parseInt(round as string) || 0), 0);
                               const completedRounds = validRounds.length;
-                              const toPar = completedRounds > 0 ? total - (72 * completedRounds) : 0;
+                              const toPar = completedRounds > 0 ? total - (currentPar * completedRounds) : 0;
                               
                               return (
                                 <tr key={golferName}>
@@ -1000,7 +1043,7 @@ scoresData?.forEach(score => {
                                         disabled={!editing.madeCut && index >= 2}
                                       />
                                       {!editing.madeCut && index >= 2 && (
-                                        <div className="text-xs text-gray-500 mt-1">80</div>
+                                        <div className="text-xs text-gray-500 mt-1">{currentPar + 8}</div>
                                       )}
                                     </td>
                                   ))}
@@ -1012,8 +1055,8 @@ scoresData?.forEach(score => {
                                         updateGolferScore(golferName, 'madeCut', e.target.checked);
                                         if (!e.target.checked) {
                                           const newRounds = [...editing.rounds];
-                                          newRounds[2] = 80;
-                                          newRounds[3] = 80;
+                                          newRounds[2] = currentPar + 8;
+                                          newRounds[3] = currentPar + 8;
                                           updateGolferScore(golferName, 'rounds', newRounds);
                                         }
                                       }}
