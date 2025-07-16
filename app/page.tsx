@@ -967,7 +967,7 @@ const GolfMajorPool = () => {
 
                   {Object.keys(editingScores).length === 0 && (
                     <div className="text-center py-8 text-gray-500">
-                      <p>Click "Edit Scores" to start entering tournament scores</p>
+                     <p>Click &quot;Edit Scores&quot; to start entering tournament scores</p>
                       <p className="text-sm mt-2">Only golfers selected by players will appear here</p>
                     </div>
                   )}
@@ -1060,7 +1060,7 @@ const GolfMajorPool = () => {
                     <div className="text-center py-8 text-gray-500">
                       <p>No scores entered yet</p>
                       {isAdminMode && (
-                        <p className="text-sm mt-2">Use the "Scores" tab to enter tournament results</p>
+                        <p className="text-sm mt-2">Use the &quot;Scores&quot; tab to enter tournament results</p>
                       )}
                     </div>
                   )}
