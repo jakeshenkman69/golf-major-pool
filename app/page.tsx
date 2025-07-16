@@ -33,6 +33,8 @@ type ScoreData = {
   toPar: number;
   madeCut: boolean;
   completedRounds: number;
+  thru?: number; // holes completed in current round
+  currentRound?: number; // current round score in progress
 };
 
 type TournamentData = {
@@ -57,7 +59,7 @@ const GolfMajorPool = () => {
   });
   const [players, setPlayers] = useState<Player[]>([]);
   const [currentScores, setCurrentScores] = useState<Record<string, ScoreData>>({});
-  const [activeTab, setActiveTab] = useState<'setup' | 'players' | 'scores' | 'leaderboard'>('setup');
+  const [activeTab, setActiveTab] = useState<'setup' | 'players' | 'scorecard' | 'leaderboard'>('setup');
   const [newPlayer, setNewPlayer] = useState<NewPlayer>({ name: '', picks: {} });
   const [selectedTournament, setSelectedTournament] = useState<string>('');
   const currentYear = new Date().getFullYear();
@@ -192,7 +194,9 @@ const tournamentLogos: Record<string, string> = {
             total: totalScore,
             toPar,
             madeCut: false,
-            completedRounds: actualRounds
+            completedRounds: actualRounds,
+            thru: score.thru || null,
+            currentRound: score.current_round || null
           };
         } else {
           // For players who made the cut, calculate normally
@@ -208,7 +212,9 @@ const tournamentLogos: Record<string, string> = {
             total: totalScore,
             toPar,
             madeCut: true,
-            completedRounds
+            completedRounds,
+            thru: score.thru || null,
+            currentRound: score.current_round || null
           };
         }
       });
@@ -491,10 +497,10 @@ const tournamentLogos: Record<string, string> = {
   };
 
   const initializeEditingScores = () => {
-    const selectedGolfers = getSelectedGolfers();
+    const allGolfers = golfers.map(g => g.name);
     const initial: Record<string, { rounds: (number | null)[]; madeCut: boolean }> = {};
     
-    selectedGolfers.forEach(golferName => {
+    allGolfers.forEach(golferName => {
       const existing = currentScores[golferName];
       initial[golferName] = {
         rounds: existing?.rounds || [null, null, null, null],
@@ -805,7 +811,7 @@ const tournamentLogos: Record<string, string> = {
                 {[
                   ...(isAdminMode ? [{ key: 'setup' as const, label: 'Setup', icon: Upload }] : []),
                   { key: 'players' as const, label: 'Players', icon: Users },
-                  ...(isAdminMode ? [{ key: 'scores' as const, label: 'Scores', icon: Edit2 }] : []),
+                  { key: 'scorecard' as const, label: 'Scorecard', icon: Edit2 },
                   { key: 'leaderboard' as const, label: 'Leaderboard', icon: Trophy }
                 ].map(({ key, label, icon: Icon }) => (
                   <button
@@ -820,7 +826,7 @@ const tournamentLogos: Record<string, string> = {
                     <Icon size={18} />
                     <span className="hidden sm:inline">{label}</span>
                     <span className="sm:hidden">
-                      {label === 'Leaderboard' ? 'Board' : label}
+                      {label === 'Leaderboard' ? 'Board' : label === 'Scorecard' ? 'Card' : label}
                     </span>
                   </button>
                 ))}
@@ -1074,139 +1080,242 @@ const tournamentLogos: Record<string, string> = {
                 </div>
               )}
 
-              {/* Manage Scores Tab */}
-              {activeTab === 'scores' && isAdminMode && (
+              {/* Scorecard Tab */}
+              {activeTab === 'scorecard' && (
                 <div className="space-y-4 sm:space-y-6">
                   <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-                    <h3 className="font-semibold text-gray-800">Manage Golfer Scores</h3>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={initializeEditingScores}
-                        className="flex items-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm sm:text-base min-h-[44px]"
-                      >
-                        <Edit2 size={18} />
-                        <span className="hidden sm:inline">Edit Scores</span>
-                        <span className="sm:hidden">Edit</span>
-                      </button>
-                      <button
-                        onClick={saveScores}
-                        disabled={Object.keys(editingScores).length === 0}
-                        className="flex items-center gap-2 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 text-sm sm:text-base min-h-[44px]"
-                      >
-                        <Save size={18} />
-                        <span className="hidden sm:inline">Save Scores</span>
-                        <span className="sm:hidden">Save</span>
-                      </button>
-                    </div>
+                    <h3 className="font-semibold text-gray-800">Tournament Scorecard</h3>
+                    {isAdminMode && (
+                      <div className="flex gap-2">
+                        <button
+                          onClick={initializeEditingScores}
+                          className="flex items-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm sm:text-base min-h-[44px]"
+                        >
+                          <Edit2 size={18} />
+                          <span className="hidden sm:inline">Edit Scores</span>
+                          <span className="sm:hidden">Edit</span>
+                        </button>
+                        <button
+                          onClick={saveScores}
+                          disabled={Object.keys(editingScores).length === 0}
+                          className="flex items-center gap-2 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 text-sm sm:text-base min-h-[44px]"
+                        >
+                          <Save size={18} />
+                          <span className="hidden sm:inline">Save Scores</span>
+                          <span className="sm:hidden">Save</span>
+                        </button>
+                      </div>
+                    )}
                   </div>
 
-                  {Object.keys(editingScores).length > 0 && (
-                    <div className="bg-white rounded-lg shadow overflow-hidden">
-                      <div className="overflow-x-auto">
-                        <table className="w-full bg-white text-gray-900">
-                          <thead className="bg-gray-50">
-                            <tr>
-                              <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Golfer
-                              </th>
-                              <th className="px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                R1
-                              </th>
-                              <th className="px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                R2
-                              </th>
-                              <th className="px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                R3
-                              </th>
-                              <th className="px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                R4
-                              </th>
-                              <th className="px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Cut
-                              </th>
-                              <th className="px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Total
-                              </th>
-                            </tr>
-                          </thead>
-                          <tbody className="bg-white divide-y divide-gray-200">
-                            {getSelectedGolfers().map(golferName => {
-                              const editing = editingScores[golferName] || { rounds: [null, null, null, null], madeCut: true };
-                              const validRounds = editing.rounds.filter(r => r !== null && r !== '');
-                              const total = validRounds.reduce((sum: number, round) => sum + (parseInt(round as string) || 0), 0);
+                  {/* Scorecard Table */}
+                  <div className="bg-white rounded-lg shadow overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full bg-white text-gray-900">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 bg-gray-50 z-10">
+                              Golfer
+                            </th>
+                            <th className="px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              To Par
+                            </th>
+                            <th className="px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Thru
+                            </th>
+                            <th className="px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Current
+                            </th>
+                            <th className="px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              R1
+                            </th>
+                            <th className="px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              R2
+                            </th>
+                            <th className="px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              R3
+                            </th>
+                            <th className="px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              R4
+                            </th>
+                            <th className="px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Made Cut
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                          {golfers.map(golfer => {
+                            const score = currentScores[golfer.name];
+                            const isEditing = editingScores[golfer.name];
+                            const editing = isEditing || { rounds: [null, null, null, null], madeCut: true };
+                            const isSelected = getSelectedGolfers().includes(golfer.name);
+                            
+                            // Use editing data if available, otherwise use current scores
+                            const displayData = isEditing ? {
+                              rounds: editing.rounds.map(r => r === '' || r === null ? null : parseInt(r as string)),
+                              madeCut: editing.madeCut,
+                              toPar: 0, // Will calculate below
+                              thru: score?.thru || null,
+                              currentRound: score?.currentRound || null
+                            } : score;
+
+                            // Calculate to par for editing mode
+                            if (isEditing && displayData) {
+                              const validRounds = displayData.rounds.filter(r => r !== null);
+                              const total = validRounds.reduce((sum: number, round) => sum + (round || 0), 0);
                               const completedRounds = validRounds.length;
-                              const toPar = completedRounds > 0 ? total - (currentPar * completedRounds) : 0;
-                              
-                              return (
-                                <tr key={golferName}>
-                                  <td className="px-3 py-4 whitespace-nowrap font-medium text-sm">
-                                    <div className="truncate max-w-32">{golferName}</div>
-                                  </td>
-                                  {editing.rounds.map((round, index) => (
-                                    <td key={index} className="px-2 py-4 whitespace-nowrap text-center">
-                                      <input
-                                        type="number"
-                                        value={round === null ? '' : round}
-                                        onChange={(e) => {
-                                          const newRounds = [...editing.rounds];
-                                          newRounds[index] = e.target.value === '' ? null : e.target.value;
-                                          updateGolferScore(golferName, 'rounds', newRounds);
-                                        }}
-                                        className="w-12 sm:w-16 px-1 sm:px-2 py-1 border rounded text-center focus:ring-2 focus:ring-blue-500 text-sm text-gray-900 bg-white"
-                                        min="60"
-                                        max="90"
-                                        placeholder="-"
-                                        disabled={!editing.madeCut && index >= 2}
-                                      />
-                                      {!editing.madeCut && index >= 2 && (
-                                        <div className="text-xs text-gray-500 mt-1">{currentPar + 8}</div>
+                              displayData.toPar = completedRounds > 0 ? total - (currentPar * completedRounds) : 0;
+                            }
+
+                            return (
+                              <tr key={golfer.name} className={`${
+                                isSelected ? 'bg-blue-50' : ''
+                              } ${!displayData ? 'opacity-60' : ''}`}>
+                                <td className="px-3 py-4 whitespace-nowrap font-medium text-sm sticky left-0 bg-white z-10">
+                                  <div className="flex items-center gap-2">
+                                    <div className="truncate max-w-32">{golfer.name}</div>
+                                    {isSelected && (
+                                      <span className="inline-block w-2 h-2 bg-blue-500 rounded-full flex-shrink-0"></span>
+                                    )}
+                                  </div>
+                                </td>
+                                
+                                {/* To Par */}
+                                <td className="px-2 py-4 whitespace-nowrap text-center">
+                                  {displayData ? (
+                                    <span className={`font-bold ${
+                                      displayData.toPar < 0 ? 'text-red-600' : 
+                                      displayData.toPar > 0 ? 'text-green-600' : 'text-gray-600'
+                                    }`}>
+                                      {displayData.toPar > 0 ? '+' : ''}{displayData.toPar}
+                                    </span>
+                                  ) : (
+                                    <span className="text-gray-400">-</span>
+                                  )}
+                                </td>
+
+                                {/* Thru */}
+                                <td className="px-2 py-4 whitespace-nowrap text-center text-sm">
+                                  {displayData?.thru ? `${displayData.thru}/18` : '-'}
+                                </td>
+
+                                {/* Current Round */}
+                                <td className="px-2 py-4 whitespace-nowrap text-center text-sm">
+                                  {displayData?.currentRound || '-'}
+                                </td>
+
+                                {/* Round Scores */}
+                                {[0, 1, 2, 3].map(roundIndex => {
+                                  const roundScore = isEditing ? editing.rounds[roundIndex] : displayData?.rounds[roundIndex];
+                                  const isMissedCutRound = !displayData?.madeCut && roundIndex >= 2;
+                                  
+                                  return (
+                                    <td key={roundIndex} className={`px-2 py-4 whitespace-nowrap text-center ${
+                                      isMissedCutRound ? 'bg-red-50 border-red-200' : ''
+                                    }`}>
+                                      {isEditing && isAdminMode ? (
+                                        <input
+                                          type="number"
+                                          value={roundScore === null ? '' : roundScore}
+                                          onChange={(e) => {
+                                            const newRounds = [...editing.rounds];
+                                            newRounds[roundIndex] = e.target.value === '' ? null : e.target.value;
+                                            updateGolferScore(golfer.name, 'rounds', newRounds);
+                                          }}
+                                          className={`w-12 sm:w-16 px-1 sm:px-2 py-1 border rounded text-center focus:ring-2 focus:ring-blue-500 text-sm text-gray-900 bg-white ${
+                                            isMissedCutRound ? 'bg-red-50 border-red-300' : ''
+                                          }`}
+                                          min="60"
+                                          max="90"
+                                          placeholder="-"
+                                          disabled={!editing.madeCut && roundIndex >= 2}
+                                        />
+                                      ) : (
+                                        <span className={`text-sm ${isMissedCutRound ? 'text-red-700 font-medium' : ''}`}>
+                                          {roundScore || '-'}
+                                          {isMissedCutRound && roundScore && (
+                                            <div className="text-xs text-red-600">(MC)</div>
+                                          )}
+                                        </span>
                                       )}
                                     </td>
-                                  ))}
-                                  <td className="px-2 py-4 whitespace-nowrap text-center">
+                                  );
+                                })}
+
+                                {/* Made Cut */}
+                                <td className="px-2 py-4 whitespace-nowrap text-center">
+                                  {isEditing && isAdminMode ? (
                                     <input
                                       type="checkbox"
                                       checked={editing.madeCut}
                                       onChange={(e) => {
-                                        updateGolferScore(golferName, 'madeCut', e.target.checked);
+                                        updateGolferScore(golfer.name, 'madeCut', e.target.checked);
                                         if (!e.target.checked) {
                                           const newRounds = [...editing.rounds];
                                           newRounds[2] = currentPar + 8;
                                           newRounds[3] = currentPar + 8;
-                                          updateGolferScore(golferName, 'rounds', newRounds);
+                                          updateGolferScore(golfer.name, 'rounds', newRounds);
                                         }
                                       }}
                                       className="w-4 h-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                                     />
-                                  </td>
-                                  <td className="px-2 py-4 whitespace-nowrap text-center">
-                                    {completedRounds > 0 && (
-                                      <span className={`font-bold text-sm ${
-                                        toPar < 0 ? 'text-red-600' : 
-                                        toPar > 0 ? 'text-green-600' : 'text-gray-600'
-                                      }`}>
-                                        {toPar > 0 ? '+' : ''}{toPar}
-                                        <div className="text-xs text-gray-500">
-                                          ({completedRounds}R)
-                                        </div>
-                                      </span>
-                                    )}
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
+                                  ) : (
+                                    <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${
+                                      displayData?.madeCut !== false 
+                                        ? 'bg-green-100 text-green-700' 
+                                        : 'bg-red-100 text-red-700'
+                                    }`}>
+                                      {displayData?.madeCut !== false ? 'Made' : 'Missed'}
+                                    </span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {golfers.length === 0 && (
+                    <div className="text-center py-8 text-gray-500">
+                      <p>No golfers in this tournament</p>
+                      {isAdminMode && (
+                        <p className="text-sm mt-2">Use the "Setup" tab to add golfers to this tournament</p>
+                      )}
                     </div>
                   )}
 
-                  {Object.keys(editingScores).length === 0 && (
-                    <div className="text-center py-8 text-gray-500">
-                      <p>Click "Edit Scores" to start entering tournament scores</p>
-                      <p className="text-sm mt-2">Only golfers selected by players will appear here</p>
+                  {/* Legend */}
+                  <div className="bg-gray-50 p-3 sm:p-4 rounded-lg">
+                    <h4 className="font-medium text-gray-800 mb-2 text-sm">Legend:</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 text-xs text-gray-600">
+                      <div className="flex items-center gap-2">
+                        <span className="inline-block w-2 h-2 bg-blue-500 rounded-full"></span>
+                        <span>Selected by players</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="inline-block px-2 py-1 bg-red-50 border border-red-200 rounded text-red-700">R3/R4</span>
+                        <span>Missed cut rounds</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-red-600 font-medium">-5</span>
+                        <span>Under par</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-green-600 font-medium">+3</span>
+                        <span>Over par</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-gray-600">12/18</span>
+                        <span>Holes completed</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-gray-600">72</span>
+                        <span>Current round score</span>
+                      </div>
                     </div>
-                  )}
+                  </div>
                 </div>
               )}
 
@@ -1296,7 +1405,7 @@ const tournamentLogos: Record<string, string> = {
                     <div className="text-center py-8 text-gray-500">
                       <p>No scores entered yet</p>
                       {isAdminMode && (
-                      <p className="text-sm mt-2">Use the "Scores" tab to enter tournament results</p>
+                      <p className="text-sm mt-2">Use the "Scorecard" tab to enter tournament results</p>
                       )}
                     </div>
                   )}
