@@ -309,7 +309,8 @@ const GolfMajorPool = () => {
       console.log('Tournament data saved successfully');
     } catch (error) {
       console.error('Error saving tournament data:', error);
-      alert(`Unexpected error: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      alert(`Unexpected error: ${errorMessage}`);
     }
   };
 
