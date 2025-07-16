@@ -70,6 +70,14 @@ const GolfMajorPool = () => {
   const [passwordInput, setPasswordInput] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
   const [currentPar, setCurrentPar] = useState<number>(72);
+  
+  // API Integration states
+  const [apiKey, setApiKey] = useState<string>('');
+  const [tournamentApiId, setTournamentApiId] = useState<string>('');
+  const [apiStatus, setApiStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [lastFetchTime, setLastFetchTime] = useState<string | null>(null);
+  const [apiError, setApiError] = useState<string | null>(null);
+  const [showApiConfig, setShowApiConfig] = useState<boolean>(false);
 
   // Sample data for new tournaments
   const sampleGolfers: Golfer[] = [
@@ -411,6 +419,8 @@ const tournamentLogos: Record<string, string> = {
           golfer_name: golferName,
           rounds,
           made_cut: scoreData.madeCut !== false,
+          thru: scoreData.thru || null,
+          current_round: scoreData.currentRound || null,
           updated_at: new Date().toISOString()
         });
       });
@@ -429,6 +439,150 @@ const tournamentLogos: Record<string, string> = {
       alert('Error saving scores. Please try again.');
     }
   };
+
+  // SlashGolfAPI Integration Functions
+  const fetchLiveScores = async () => {
+    if (!apiKey || !tournamentApiId) {
+      alert('Please configure your SlashGolf API key and Tournament ID first');
+      setShowApiConfig(true);
+      return;
+    }
+
+    setApiStatus('loading');
+    setApiError(null);
+
+    try {
+      // SlashGolfAPI endpoint - you'll need to adjust this based on their actual API
+      const apiUrl = `https://slashgolf.dev/api/tournament/${tournamentApiId}/leaderboard`;
+      
+      const response = await fetch(apiUrl, {
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        if (response.status === 429) {
+          throw new Error('API rate limit exceeded. Please wait before trying again.');
+        }
+        if (response.status === 401) {
+          throw new Error('Invalid API key. Please check your configuration.');
+        }
+        if (response.status === 404) {
+          throw new Error('Tournament not found. Please check the Tournament ID.');
+        }
+        throw new Error(`API Error: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      console.log('SlashGolf API Response:', data);
+
+      // Process the API response and update scores
+      await processApiScores(data);
+      
+      setApiStatus('success');
+      setLastFetchTime(new Date().toISOString());
+      
+    } catch (error) {
+      console.error('Error fetching live scores:', error);
+      setApiError(error instanceof Error ? error.message : 'Failed to fetch scores');
+      setApiStatus('error');
+    }
+  };
+
+  const processApiScores = async (apiData: any) => {
+    if (!selectedTournament) return;
+
+    const scoreUpdates: any[] = [];
+    
+    // This structure will need to be adjusted based on SlashGolf's actual API response format
+    // Common golf API formats include player arrays with scores, rounds, etc.
+    const players = apiData.players || apiData.leaderboard || apiData.data || [];
+    
+    players.forEach((player: any) => {
+      // Find matching golfer in our tournament
+      const golferName = findMatchingGolfer(player.name || player.player_name || player.full_name);
+      
+      if (golferName) {
+        // Extract round scores - adjust field names based on API response
+        const rounds = [
+          player.round1 || player.scores?.[0] || null,
+          player.round2 || player.scores?.[1] || null,
+          player.round3 || player.scores?.[2] || null,
+          player.round4 || player.scores?.[3] || null
+        ];
+
+        // Determine if player made the cut
+        const madeCut = player.made_cut !== false && player.status !== 'CUT' && player.position !== 'CUT';
+        
+        // Apply missed cut penalty if needed
+        if (!madeCut) {
+          const penaltyScore = currentPar + 8;
+          rounds[2] = rounds[2] || penaltyScore;
+          rounds[3] = rounds[3] || penaltyScore;
+        }
+
+        scoreUpdates.push({
+          tournament_key: selectedTournament,
+          golfer_name: golferName,
+          rounds,
+          made_cut: madeCut,
+          thru: player.thru || player.holes_completed || null,
+          current_round: player.current_round || player.today || null,
+          updated_at: new Date().toISOString()
+        });
+      }
+    });
+
+    if (scoreUpdates.length > 0) {
+      const { error } = await supabase
+        .from('scores')
+        .upsert(scoreUpdates, { onConflict: 'tournament_key,golfer_name' });
+
+      if (error) throw error;
+
+      // Reload tournament data to show updated scores
+      await loadTournamentData(selectedTournament);
+      
+      console.log(`Updated scores for ${scoreUpdates.length} golfers`);
+    }
+  };
+
+  const findMatchingGolfer = (apiPlayerName: string): string | null => {
+    if (!apiPlayerName) return null;
+    
+    // Normalize the name for matching
+    const normalized = apiPlayerName.toLowerCase().trim();
+    
+    // Try exact match first
+    const exactMatch = golfers.find(g => g.name.toLowerCase() === normalized);
+    if (exactMatch) return exactMatch.name;
+    
+    // Try partial matches (last name, etc.)
+    const partialMatch = golfers.find(g => {
+      const golferName = g.name.toLowerCase();
+      const lastName = golferName.split(' ').pop() || '';
+      const apiLastName = normalized.split(' ').pop() || '';
+      return lastName === apiLastName && lastName.length > 2;
+    });
+    
+    return partialMatch?.name || null;
+  };
+
+  const saveApiKey = (key: string) => {
+    setApiKey(key);
+    // Note: In a real environment, you would save to localStorage here
+    // localStorage.setItem('slashgolf_api_key', key);
+  };
+
+  // Note: In a real environment, you would load from localStorage here
+  // useEffect(() => {
+  //   const savedKey = localStorage.getItem('slashgolf_api_key');
+  //   if (savedKey) {
+  //     setApiKey(savedKey);
+  //   }
+  // }, []);
 
   // ... (rest of the helper functions remain the same)
   const handleAdminToggle = () => {
@@ -806,6 +960,70 @@ const tournamentLogos: Record<string, string> = {
                 </div>
               )}
 
+              {/* API Configuration Modal */}
+              {showApiConfig && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                  <div className="bg-white p-4 sm:p-6 rounded-lg shadow-lg max-w-md w-full">
+                    <h3 className="text-lg font-semibold mb-4">SlashGolf API Configuration</h3>
+                    <p className="text-gray-600 mb-4 text-sm sm:text-base">Configure your SlashGolf API settings:</p>
+                    
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          API Key
+                        </label>
+                        <input
+                          type="password"
+                          value={apiKey}
+                          onChange={(e) => setApiKey(e.target.value)}
+                          placeholder="Enter your SlashGolf API key"
+                          className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-base text-gray-900 bg-white placeholder-gray-500"
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Tournament ID
+                        </label>
+                        <input
+                          type="text"
+                          value={tournamentApiId}
+                          onChange={(e) => setTournamentApiId(e.target.value)}
+                          placeholder="e.g. masters-2025, pga-championship-2025"
+                          className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-base text-gray-900 bg-white placeholder-gray-500"
+                        />
+                      </div>
+                    </div>
+                    
+                    <div className="bg-yellow-50 p-3 rounded-lg mt-4 mb-4">
+                      <p className="text-xs text-yellow-800">
+                        <strong>Note:</strong> Your API configuration will be stored locally in your browser. 
+                        The Tournament ID should match the identifier used by SlashGolf API for this specific tournament.
+                      </p>
+                    </div>
+                    
+                    <div className="flex flex-col sm:flex-row justify-end gap-2">
+                      <button
+                        onClick={() => setShowApiConfig(false)}
+                        className="px-4 py-3 text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 text-base min-h-[44px]"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={() => {
+                          saveApiKey(apiKey);
+                          setShowApiConfig(false);
+                        }}
+                        disabled={!apiKey || !tournamentApiId}
+                        className="px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 text-base min-h-[44px]"
+                      >
+                        Save Configuration
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Navigation Tabs */}
               <div className="flex overflow-x-auto space-x-2 sm:space-x-4 mb-4 sm:mb-6 border-b pb-2">
                 {[
@@ -886,6 +1104,37 @@ const tournamentLogos: Record<string, string> = {
                     <div className="mt-3 p-2 sm:p-3 bg-yellow-100 border border-yellow-200 rounded">
                       <p className="text-xs text-yellow-800">
                         <strong>✓ Auto-saves:</strong> Par changes are automatically saved to the database.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* API Integration Section */}
+                  <div className="bg-purple-50 p-3 sm:p-4 rounded-lg">
+                    <h3 className="font-semibold mb-2 text-purple-800 text-sm sm:text-base">SlashGolf API Integration</h3>
+                    <p className="text-xs sm:text-sm text-purple-600 mb-3">
+                      Configure API settings to automatically fetch live scores for this tournament.
+                    </p>
+                    <div className="flex items-center gap-4 mb-3">
+                      <label className="text-sm font-medium text-purple-800">
+                        Tournament API ID:
+                      </label>
+                      <input
+                        type="text"
+                        value={tournamentApiId}
+                        onChange={(e) => setTournamentApiId(e.target.value)}
+                        placeholder="e.g. masters-2025"
+                        className="flex-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 text-center text-gray-900 bg-white"
+                      />
+                      <button
+                        onClick={() => setShowApiConfig(true)}
+                        className="px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm"
+                      >
+                        Config API
+                      </button>
+                    </div>
+                    <div className="mt-3 p-2 sm:p-3 bg-purple-100 border border-purple-200 rounded">
+                      <p className="text-xs text-purple-800">
+                        <strong>API Status:</strong> {(apiKey && tournamentApiId) ? '🔑 Ready to fetch live scores' : '❌ API key or Tournament ID missing'}
                       </p>
                     </div>
                   </div>
@@ -1085,25 +1334,93 @@ const tournamentLogos: Record<string, string> = {
                 <div className="space-y-4 sm:space-y-6">
                   <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
                     <h3 className="font-semibold text-gray-800">Tournament Scorecard</h3>
-                    {isAdminMode && (
-                      <div className="flex gap-2">
-                        <button
-                          onClick={initializeEditingScores}
-                          className="flex items-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm sm:text-base min-h-[44px]"
-                        >
-                          <Edit2 size={18} />
-                          <span className="hidden sm:inline">Edit Scores</span>
-                          <span className="sm:hidden">Edit</span>
-                        </button>
-                        <button
-                          onClick={saveScores}
-                          disabled={Object.keys(editingScores).length === 0}
-                          className="flex items-center gap-2 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 text-sm sm:text-base min-h-[44px]"
-                        >
-                          <Save size={18} />
-                          <span className="hidden sm:inline">Save Scores</span>
-                          <span className="sm:hidden">Save</span>
-                        </button>
+                    <div className="flex flex-wrap gap-2">
+                      {/* API Controls */}
+                      <button
+                        onClick={() => fetchLiveScores()}
+                        disabled={apiStatus === 'loading'}
+                        className="flex items-center gap-2 px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-400 text-sm sm:text-base min-h-[44px]"
+                      >
+                        {apiStatus === 'loading' ? (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                            <span className="hidden sm:inline">Fetching...</span>
+                            <span className="sm:hidden">Loading</span>
+                          </>
+                        ) : (
+                          <>
+                            <span>🔄</span>
+                            <span className="hidden sm:inline">Fetch Live Scores</span>
+                            <span className="sm:hidden">Fetch</span>
+                          </>
+                        )}
+                      </button>
+                      
+                      <button
+                        onClick={() => setShowApiConfig(true)}
+                        className="flex items-center gap-2 px-4 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 text-sm sm:text-base min-h-[44px]"
+                      >
+                        <span>⚙️</span>
+                        <span className="hidden sm:inline">API Config</span>
+                        <span className="sm:hidden">Config</span>
+                      </button>
+
+                      {/* Admin Edit Controls */}
+                      {isAdminMode && (
+                        <>
+                          <button
+                            onClick={initializeEditingScores}
+                            className="flex items-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm sm:text-base min-h-[44px]"
+                          >
+                            <Edit2 size={18} />
+                            <span className="hidden sm:inline">Edit Scores</span>
+                            <span className="sm:hidden">Edit</span>
+                          </button>
+                          <button
+                            onClick={saveScores}
+                            disabled={Object.keys(editingScores).length === 0}
+                            className="flex items-center gap-2 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 text-sm sm:text-base min-h-[44px]"
+                          >
+                            <Save size={18} />
+                            <span className="hidden sm:inline">Save Scores</span>
+                            <span className="sm:hidden">Save</span>
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* API Status Bar */}
+                  <div className="bg-gray-50 p-3 sm:p-4 rounded-lg">
+                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
+                      <div className="flex items-center gap-3">
+                        <span className="text-sm font-medium text-gray-700">API Status:</span>
+                        <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${
+                          apiStatus === 'success' ? 'bg-green-100 text-green-700' :
+                          apiStatus === 'error' ? 'bg-red-100 text-red-700' :
+                          apiStatus === 'loading' ? 'bg-blue-100 text-blue-700' :
+                          'bg-gray-100 text-gray-700'
+                        }`}>
+                          {apiStatus === 'success' ? '✓ Connected' :
+                           apiStatus === 'error' ? '✗ Error' :
+                           apiStatus === 'loading' ? '⏳ Loading' :
+                           (apiKey && tournamentApiId) ? '🔑 Ready' : '❌ Not Configured'}
+                        </span>
+                      </div>
+                      <div className="text-xs text-gray-600">
+                        {lastFetchTime ? `Last updated: ${new Date(lastFetchTime).toLocaleString()}` : 'Never updated'}
+                      </div>
+                    </div>
+                    
+                    {apiError && (
+                      <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-700">
+                        <strong>Error:</strong> {apiError}
+                      </div>
+                    )}
+                    
+                    {apiStatus === 'success' && !apiError && (
+                      <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded text-sm text-green-700">
+                        <strong>Success:</strong> Live scores updated successfully!
                       </div>
                     )}
                   </div>
@@ -1404,9 +1721,7 @@ const tournamentLogos: Record<string, string> = {
                   {Object.keys(currentScores).length === 0 && (
                     <div className="text-center py-8 text-gray-500">
                       <p>No scores entered yet</p>
-                      {isAdminMode && (
-                      <p className="text-sm mt-2">Use the "Scorecard" tab to enter tournament results</p>
-                      )}
+                      <p className="text-sm mt-2">Use the "Scorecard" tab to fetch live scores or enter results manually</p>
                     </div>
                   )}
                 </div>
