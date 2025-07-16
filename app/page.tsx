@@ -567,7 +567,7 @@ const GolfMajorPool = () => {
             <div className="flex items-center gap-2 sm:gap-4">
               {isAdminMode && selectedTournament && (
                 <button
-                  onClick={saveTournamentData}
+                  onClick={() => saveTournamentData()}
                   className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2 text-sm sm:text-base min-h-[44px]"
                 >
                   <Save size={16} />
