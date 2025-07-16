@@ -37,6 +37,7 @@ type ScoreData = {
 
 type TournamentData = {
   name: string;
+  logo?: string; // Added logo field
   golfers: Golfer[];
   tiers: TierData;
   players: Player[];
@@ -82,6 +83,16 @@ const GolfMajorPool = () => {
     { name: 'Shane Lowry' }, { name: 'Si Woo Kim' }, { name: 'Tyrrell Hatton' }
   ];
 
+  // Tournament logos mapping
+  const tournamentLogos: Record<string, string> = {
+    'masters-2025': 'https://logos-world.net/wp-content/uploads/2021/03/Masters-Tournament-Logo.png',
+    'pga-championship-2025': 'https://1000logos.net/wp-content/uploads/2017/05/PGA-Championship-Logo.png',
+    'us-open-2025': 'https://logos-world.net/wp-content/uploads/2021/03/US-Open-Golf-Logo.png',
+    'british-open-2025': 'https://logoeps.com/wp-content/uploads/2014/06/the-open-championship-vector-logo.png',
+    'players-championship-2025': 'https://www.theplayers.com/content/dam/pgatour-players/logos/TPC_stacked_pos_4c.png',
+    'fedex-cup-2025': 'https://www.pgatour.com/content/dam/pgatour/fedexcup/logos/fedexcup-logo-black.png'
+  };
+
   // Load tournaments from database
   useEffect(() => {
     loadTournaments();
@@ -114,6 +125,7 @@ const GolfMajorPool = () => {
       data?.forEach(tournament => {
         tournamentMap[tournament.tournament_key] = {
           name: tournament.name,
+          logo: tournament.logo || tournamentLogos[tournament.tournament_key], // Add logo support
           golfers: tournament.golfers || [],
           tiers: tournament.tiers || {
             tier1: [], tier2: [], tier3: [], tier4: [], tier5: [], tier6: []
@@ -249,6 +261,7 @@ const GolfMajorPool = () => {
       const dataToSave = {
         tournament_key: selectedTournament,
         name: tournaments[selectedTournament]?.name || 'Untitled Tournament',
+        logo: tournaments[selectedTournament]?.logo, // Add logo to save data
         golfers,
         tiers,
         par: parToSave,
@@ -668,11 +681,28 @@ const GolfMajorPool = () => {
                     onClick={() => setSelectedTournament(key)}
                     className="bg-white border-2 border-gray-200 rounded-lg p-4 sm:p-6 hover:border-blue-500 hover:shadow-lg transition-all cursor-pointer group active:scale-95"
                   >
+                    {/* Tournament Logo and Header */}
                     <div className="flex items-center justify-between mb-3 sm:mb-4">
-                      <h3 className="text-lg sm:text-xl font-semibold text-gray-800 group-hover:text-blue-600 leading-tight">
-                        {tournament.name}
-                      </h3>
-                      <Trophy className="text-yellow-500 group-hover:text-yellow-600 flex-shrink-0" size={20} />
+                      <div className="flex items-center gap-3">
+                        {tournament.logo ? (
+                          <img 
+                            src={tournament.logo} 
+                            alt={`${tournament.name} logo`}
+                            className="w-12 h-12 object-contain flex-shrink-0"
+                            onError={(e) => {
+                              // Fallback to trophy icon if logo fails to load
+                              e.currentTarget.style.display = 'none';
+                              e.currentTarget.parentElement?.querySelector('.fallback-icon')?.classList.remove('hidden');
+                            }}
+                          />
+                        ) : (
+                          <Trophy className="text-yellow-500 flex-shrink-0" size={24} />
+                        )}
+                        <Trophy className="text-yellow-500 group-hover:text-yellow-600 flex-shrink-0 hidden fallback-icon" size={24} />
+                        <h3 className="text-lg sm:text-xl font-semibold text-gray-800 group-hover:text-blue-600 leading-tight">
+                          {tournament.name}
+                        </h3>
+                      </div>
                     </div>
                     
                     <div className="space-y-2 text-sm text-gray-600">
@@ -707,16 +737,32 @@ const GolfMajorPool = () => {
 
           {selectedTournament && (
             <>
-              {/* Tournament Info Bar */}
+              {/* Tournament Info Bar with Logo */}
               <div className="bg-blue-50 p-3 sm:p-4 rounded-lg mb-4 sm:mb-6">
                 <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
-                  <div>
-                    <h2 className="text-base sm:text-lg font-semibold text-blue-800">
-                      {tournaments[selectedTournament]?.name}
-                    </h2>
-                    <p className="text-xs sm:text-sm text-blue-600">
-                      {players.length} players • {golfers.length} golfers • Par {currentPar}
-                    </p>
+                  <div className="flex items-center gap-3">
+                    {tournaments[selectedTournament]?.logo ? (
+                      <img 
+                        src={tournaments[selectedTournament].logo} 
+                        alt={`${tournaments[selectedTournament].name} logo`}
+                        className="w-10 h-10 object-contain flex-shrink-0"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                          e.currentTarget.parentElement?.querySelector('.fallback-icon')?.classList.remove('hidden');
+                        }}
+                      />
+                    ) : (
+                      <Trophy className="text-blue-600 flex-shrink-0" size={24} />
+                    )}
+                    <Trophy className="text-blue-600 flex-shrink-0 hidden fallback-icon" size={24} />
+                    <div>
+                      <h2 className="text-base sm:text-lg font-semibold text-blue-800">
+                        {tournaments[selectedTournament]?.name}
+                      </h2>
+                      <p className="text-xs sm:text-sm text-blue-600">
+                        {players.length} players • {golfers.length} golfers • Par {currentPar}
+                      </p>
+                    </div>
                   </div>
                   <div className="text-xs sm:text-sm text-blue-600">
                     Live database connected ✓
@@ -1160,7 +1206,7 @@ const GolfMajorPool = () => {
 
                   {Object.keys(editingScores).length === 0 && (
                     <div className="text-center py-8 text-gray-500">
-                      <p>Click &quot;Edit Scores&quot; to start entering tournament scores</p>
+                      <p>Click "Edit Scores" to start entering tournament scores</p>
                       <p className="text-sm mt-2">Only golfers selected by players will appear here</p>
                     </div>
                   )}
@@ -1253,7 +1299,7 @@ const GolfMajorPool = () => {
                     <div className="text-center py-8 text-gray-500">
                       <p>No scores entered yet</p>
                       {isAdminMode && (
-                      <p className="text-sm mt-2">Use the &quot;Scores&quot; tab to enter tournament results</p>
+                      <p className="text-sm mt-2">Use the "Scores" tab to enter tournament results</p>
                       )}
                     </div>
                   )}
