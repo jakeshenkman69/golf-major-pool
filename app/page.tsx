@@ -83,12 +83,34 @@ const GolfMajorPool = () => {
     { name: 'Shane Lowry' }, { name: 'Si Woo Kim' }, { name: 'Tyrrell Hatton' }
   ];
 
-// Tournament logos mapping - Mixed sources
+// Tournament logos mapping - Simple SVG icons
 const tournamentLogos: Record<string, string> = {
-  'masters-2025': 'https://logos-world.net/wp-content/uploads/2021/03/Masters-Tournament-Logo.png',
-  'pga-championship-2025': 'https://seeklogo.com/images/P/pga-championship-logo-C8B0F2B6E4-seeklogo.com.png',
-  'us-open-2025': 'https://upload.wikimedia.org/wikipedia/en/7/76/US_Open_%28Golf%29_Logo.png',
-  'british-open-2025': 'https://seeklogo.com/images/T/the-open-championship-logo-A7F647F5D5-seeklogo.com.png',
+  'masters-2025': 'data:image/svg+xml;base64,' + btoa(`
+    <svg width="48" height="48" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="24" cy="24" r="20" fill="#006747" stroke="#FFD700" stroke-width="2"/>
+      <text x="24" y="28" text-anchor="middle" fill="#FFD700" font-family="serif" font-size="8" font-weight="bold">MASTERS</text>
+    </svg>
+  `),
+  'pga-championship-2025': 'data:image/svg+xml;base64,' + btoa(`
+    <svg width="48" height="48" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+      <rect x="4" y="4" width="40" height="40" fill="#003366" rx="4"/>
+      <text x="24" y="28" text-anchor="middle" fill="#FFD700" font-family="sans-serif" font-size="10" font-weight="bold">PGA</text>
+    </svg>
+  `),
+  'us-open-2025': 'data:image/svg+xml;base64,' + btoa(`
+    <svg width="48" height="48" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="24" cy="24" r="20" fill="#1F2937" stroke="#3B82F6" stroke-width="2"/>
+      <text x="24" y="20" text-anchor="middle" fill="#3B82F6" font-family="sans-serif" font-size="6" font-weight="bold">US</text>
+      <text x="24" y="30" text-anchor="middle" fill="#3B82F6" font-family="sans-serif" font-size="6" font-weight="bold">OPEN</text>
+    </svg>
+  `),
+  'british-open-2025': 'data:image/svg+xml;base64,' + btoa(`
+    <svg width="48" height="48" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+      <rect x="4" y="4" width="40" height="40" fill="#8B4513" rx="4"/>
+      <text x="24" y="20" text-anchor="middle" fill="#FFD700" font-family="serif" font-size="6" font-weight="bold">THE</text>
+      <text x="24" y="30" text-anchor="middle" fill="#FFD700" font-family="serif" font-size="6" font-weight="bold">OPEN</text>
+    </svg>
+  `),
 };
   // Load tournaments from database
   useEffect(() => {
