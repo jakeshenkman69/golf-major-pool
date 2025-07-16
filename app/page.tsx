@@ -65,7 +65,7 @@ const GolfMajorPool = () => {
   const currentYear = new Date().getFullYear();
   const [tournaments, setTournaments] = useState<Record<string, TournamentData>>({});
   const [isAdminMode, setIsAdminMode] = useState<boolean>(false);
-  const [editingScores, setEditingScores] = useState<Record<string, { rounds: (number | null | string)[]; madeCut: boolean }>>({});
+  const [editingScores, setEditingScores] = useState<Record<string, { rounds: (number | null | string)[]; madeCut: boolean; thru?: number; currentRound?: number }>>({});
   const [showPasswordPrompt, setShowPasswordPrompt] = useState<boolean>(false);
   const [passwordInput, setPasswordInput] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
@@ -572,17 +572,25 @@ const tournamentLogos: Record<string, string> = {
 
   const saveApiKey = (key: string) => {
     setApiKey(key);
-    // Note: In a real environment, you would save to localStorage here
-    // localStorage.setItem('slashgolf_api_key', key);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('slashgolf_api_key', key);
+      localStorage.setItem('slashgolf_tournament_id', tournamentApiId);
+    }
   };
 
-  // Note: In a real environment, you would load from localStorage here
-  // useEffect(() => {
-  //   const savedKey = localStorage.getItem('slashgolf_api_key');
-  //   if (savedKey) {
-  //     setApiKey(savedKey);
-  //   }
-  // }, []);
+  // Load API key on component mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedKey = localStorage.getItem('slashgolf_api_key');
+      const savedTournamentId = localStorage.getItem('slashgolf_tournament_id');
+      if (savedKey) {
+        setApiKey(savedKey);
+      }
+      if (savedTournamentId) {
+        setTournamentApiId(savedTournamentId);
+      }
+    }
+  }, []);
 
   // ... (rest of the helper functions remain the same)
   const handleAdminToggle = () => {
@@ -634,6 +642,10 @@ const tournamentLogos: Record<string, string> = {
     setEditingScores(prev => ({
       ...prev,
       [golferName]: {
+        rounds: prev[golferName]?.rounds || [null, null, null, null],
+        madeCut: prev[golferName]?.madeCut !== false,
+        thru: prev[golferName]?.thru,
+        currentRound: prev[golferName]?.currentRound,
         ...prev[golferName],
         [field]: value
       }
@@ -652,13 +664,15 @@ const tournamentLogos: Record<string, string> = {
 
   const initializeEditingScores = () => {
     const allGolfers = golfers.map(g => g.name);
-    const initial: Record<string, { rounds: (number | null)[]; madeCut: boolean }> = {};
+    const initial: Record<string, { rounds: (number | null)[]; madeCut: boolean; thru?: number; currentRound?: number }> = {};
     
     allGolfers.forEach(golferName => {
       const existing = currentScores[golferName];
       initial[golferName] = {
         rounds: existing?.rounds || [null, null, null, null],
-        madeCut: existing?.madeCut !== false
+        madeCut: existing?.madeCut !== false,
+        thru: existing?.thru,
+        currentRound: existing?.currentRound
       };
     });
     setEditingScores(initial);
@@ -988,7 +1002,12 @@ const tournamentLogos: Record<string, string> = {
                         <input
                           type="text"
                           value={tournamentApiId}
-                          onChange={(e) => setTournamentApiId(e.target.value)}
+                          onChange={(e) => {
+                            setTournamentApiId(e.target.value);
+                            if (typeof window !== 'undefined') {
+                              localStorage.setItem('slashgolf_tournament_id', e.target.value);
+                            }
+                          }}
                           placeholder="e.g. masters-2025, pga-championship-2025"
                           className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-base text-gray-900 bg-white placeholder-gray-500"
                         />
@@ -1012,6 +1031,9 @@ const tournamentLogos: Record<string, string> = {
                       <button
                         onClick={() => {
                           saveApiKey(apiKey);
+                          if (typeof window !== 'undefined') {
+                            localStorage.setItem('slashgolf_tournament_id', tournamentApiId);
+                          }
                           setShowApiConfig(false);
                         }}
                         disabled={!apiKey || !tournamentApiId}
@@ -1121,7 +1143,12 @@ const tournamentLogos: Record<string, string> = {
                       <input
                         type="text"
                         value={tournamentApiId}
-                        onChange={(e) => setTournamentApiId(e.target.value)}
+                        onChange={(e) => {
+                          setTournamentApiId(e.target.value);
+                          if (typeof window !== 'undefined') {
+                            localStorage.setItem('slashgolf_tournament_id', e.target.value);
+                          }
+                        }}
                         placeholder="e.g. masters-2025"
                         className="flex-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 text-center text-gray-900 bg-white"
                       />
@@ -1464,7 +1491,12 @@ const tournamentLogos: Record<string, string> = {
                           {golfers.map(golfer => {
                             const score = currentScores[golfer.name];
                             const isEditing = editingScores[golfer.name];
-                            const editing = isEditing || { rounds: [null, null, null, null], madeCut: true };
+                            const editing = isEditing || { 
+                              rounds: [null, null, null, null], 
+                              madeCut: true, 
+                              thru: score?.thru, 
+                              currentRound: score?.currentRound 
+                            };
                             const isSelected = getSelectedGolfers().includes(golfer.name);
                             
                             // Use editing data if available, otherwise use current scores
