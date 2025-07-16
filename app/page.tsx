@@ -407,7 +407,7 @@ const GolfMajorPool = () => {
           const rounds = [...score.rounds];
           rounds[2] = 80;
           rounds[3] = 80;
-          const cutScore = rounds.reduce((sum, round) => sum + (round || 0), 0);
+          const cutScore = rounds.reduce((sum: number, round) => sum + (round || 0), 0);
           return {
             name: golferName,
             toPar: cutScore - (72 * 4),
@@ -428,7 +428,7 @@ const GolfMajorPool = () => {
       }).filter(Boolean);
 
       const bestFour = golferScores.sort((a, b) => a!.toPar - b!.toPar).slice(0, 4);
-      const totalScore = bestFour.reduce((sum, golfer) => sum + golfer!.toPar, 0);
+      const totalScore = bestFour.reduce((sum: number, golfer) => sum + golfer!.toPar, 0);
       const lowestIndividualScore = golferScores.length > 0 
         ? Math.min(...golferScores.map(g => g!.toPar))
         : 999;
@@ -783,7 +783,7 @@ const GolfMajorPool = () => {
                           const rounds = [...score.rounds];
                           rounds[2] = 80;
                           rounds[3] = 80;
-                          const cutScore = rounds.reduce((sum, round) => sum + (round || 0), 0);
+                          const cutScore = rounds.reduce((sum: number, round) => sum + (round || 0), 0);
                           return {
                             name: golferName,
                             toPar: cutScore - (72 * 4),
@@ -802,7 +802,7 @@ const GolfMajorPool = () => {
 
                       const validScores = playerScores.filter(g => g.toPar !== null);
                       const bestFour = validScores.sort((a, b) => a.toPar! - b.toPar!).slice(0, 4);
-                      const totalScore = bestFour.reduce((sum, golfer) => sum + golfer.toPar!, 0);
+                      const totalScore = bestFour.reduce((sum: number, golfer) => sum + golfer.toPar!, 0);
 
                       return (
                         <div key={player.id} className="bg-white border rounded-lg p-4 shadow-sm">
@@ -951,7 +951,7 @@ const GolfMajorPool = () => {
                             {getSelectedGolfers().map(golferName => {
                               const editing = editingScores[golferName] || { rounds: [null, null, null, null], madeCut: true };
                               const validRounds = editing.rounds.filter(r => r !== null && r !== '');
-                              const total = validRounds.reduce((sum, round) => sum + (parseInt(round as string) || 0), 0);
+                              const total = validRounds.reduce((sum: number, round) => sum + (parseInt(round as string) || 0), 0);
                               const completedRounds = validRounds.length;
                               const toPar = completedRounds > 0 ? total - (72 * completedRounds) : 0;
                               
