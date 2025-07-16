@@ -642,10 +642,10 @@ const tournamentLogos: Record<string, string> = {
     setEditingScores(prev => ({
       ...prev,
       [golferName]: {
-        rounds: prev[golferName]?.rounds || [null, null, null, null],
-        madeCut: prev[golferName]?.madeCut !== false,
-        thru: prev[golferName]?.thru,
-        currentRound: prev[golferName]?.currentRound,
+        rounds: [null, null, null, null],
+        madeCut: true,
+        thru: undefined,
+        currentRound: undefined,
         ...prev[golferName],
         [field]: value
       }
