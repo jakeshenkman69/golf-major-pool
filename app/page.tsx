@@ -83,16 +83,13 @@ const GolfMajorPool = () => {
     { name: 'Shane Lowry' }, { name: 'Si Woo Kim' }, { name: 'Tyrrell Hatton' }
   ];
 
-  // Tournament logos mapping
-  const tournamentLogos: Record<string, string> = {
-    'masters-2025': 'https://logos-world.net/wp-content/uploads/2021/03/Masters-Tournament-Logo.png',
-    'pga-championship-2025': 'https://1000logos.net/wp-content/uploads/2017/05/PGA-Championship-Logo.png',
-    'us-open-2025': 'https://logos-world.net/wp-content/uploads/2021/03/US-Open-Golf-Logo.png',
-    'british-open-2025': 'https://logoeps.com/wp-content/uploads/2014/06/the-open-championship-vector-logo.png',
-    'players-championship-2025': 'https://www.theplayers.com/content/dam/pgatour-players/logos/TPC_stacked_pos_4c.png',
-    'fedex-cup-2025': 'https://www.pgatour.com/content/dam/pgatour/fedexcup/logos/fedexcup-logo-black.png'
-  };
-
+// Tournament logos mapping
+const tournamentLogos: Record<string, string> = {
+  'masters-2025': 'https://upload.wikimedia.org/wikipedia/en/2/23/Masters_Logo.png',
+  'pga-championship-2025': 'https://upload.wikimedia.org/wikipedia/en/5/5d/PGA_Championship.png',
+  'us-open-2025': 'https://upload.wikimedia.org/wikipedia/en/7/76/US_Open_%28Golf%29_Logo.png', // UPDATED URL
+  'british-open-2025': 'https://upload.wikimedia.org/wikipedia/en/d/d0/The_Open_Championship_logo.png',
+};
   // Load tournaments from database
   useEffect(() => {
     loadTournaments();
