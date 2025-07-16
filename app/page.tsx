@@ -46,7 +46,7 @@ const GolfMajorPool = () => {
     if (selectedTournament) {
       loadTournamentData(selectedTournament);
     }
-  }, [selectedTournament]);
+  }, [selectedTournament]); // Remove 'loadTournamentData' from dependency array
 
   // Auto-switch to players tab when not in admin mode
   useEffect(() => {
@@ -61,10 +61,10 @@ const GolfMajorPool = () => {
         .from('tournaments')
         .select('*')
         .order('created_at');
-
+  
       if (error) throw error;
-
-      const tournamentMap = {};
+  
+      const tournamentMap: Record<string, any> = {}; // Add proper typing here
       data.forEach(tournament => {
         tournamentMap[tournament.tournament_key] = {
           name: tournament.name,
@@ -74,7 +74,7 @@ const GolfMajorPool = () => {
           scores: {}
         };
       });
-
+  
       setTournaments(tournamentMap);
     } catch (error) {
       console.error('Error loading tournaments:', error);
