@@ -46,7 +46,7 @@ const GolfMajorPool = () => {
     if (selectedTournament) {
       loadTournamentData(selectedTournament);
     }
-  }, [selectedTournament]); // Remove 'loadTournamentData' from dependency array
+  }, [selectedTournament]);
 
   // Auto-switch to players tab when not in admin mode
   useEffect(() => {
@@ -61,10 +61,10 @@ const GolfMajorPool = () => {
         .from('tournaments')
         .select('*')
         .order('created_at');
-  
+
       if (error) throw error;
-  
-      const tournamentMap: Record<string, any> = {}; // Add proper typing here
+
+      const tournamentMap = {};
       data.forEach(tournament => {
         tournamentMap[tournament.tournament_key] = {
           name: tournament.name,
@@ -74,7 +74,7 @@ const GolfMajorPool = () => {
           scores: {}
         };
       });
-  
+
       setTournaments(tournamentMap);
     } catch (error) {
       console.error('Error loading tournaments:', error);
@@ -627,8 +627,8 @@ const GolfMajorPool = () => {
                 ))}
               </div>
 
-              {/* Setup Tab */}
-              {activeTab === 'setup' && isAdminMode && (
+             {/* Setup Tab */}
+             {activeTab === 'setup' && isAdminMode && (
                 <div className="space-y-4 sm:space-y-6">
                   <div className="bg-blue-50 p-3 sm:p-4 rounded-lg">
                     <h3 className="font-semibold mb-2 text-blue-800 text-sm sm:text-base">Upload Golfers</h3>
@@ -967,7 +967,7 @@ const GolfMajorPool = () => {
 
                   {Object.keys(editingScores).length === 0 && (
                     <div className="text-center py-8 text-gray-500">
-                     <p>Click &quot;Edit Scores&quot; to start entering tournament scores</p>
+                      <p>Click "Edit Scores" to start entering tournament scores</p>
                       <p className="text-sm mt-2">Only golfers selected by players will appear here</p>
                     </div>
                   )}
@@ -1060,7 +1060,7 @@ const GolfMajorPool = () => {
                     <div className="text-center py-8 text-gray-500">
                       <p>No scores entered yet</p>
                       {isAdminMode && (
-                        <p className="text-sm mt-2">Use the &quot;Scores&quot; tab to enter tournament results</p>
+                        <p className="text-sm mt-2">Use the "Scores" tab to enter tournament results</p>
                       )}
                     </div>
                   )}
