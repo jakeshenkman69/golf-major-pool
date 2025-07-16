@@ -83,12 +83,12 @@ const GolfMajorPool = () => {
     { name: 'Shane Lowry' }, { name: 'Si Woo Kim' }, { name: 'Tyrrell Hatton' }
   ];
 
-// Tournament logos mapping
+// Tournament logos mapping - Mixed sources
 const tournamentLogos: Record<string, string> = {
-  'masters-2025': 'https://upload.wikimedia.org/wikipedia/en/2/23/Masters_Logo.png',
-  'pga-championship-2025': 'https://upload.wikimedia.org/wikipedia/en/5/5d/PGA_Championship.png',
-  'us-open-2025': 'https://upload.wikimedia.org/wikipedia/en/7/76/US_Open_%28Golf%29_Logo.png', // UPDATED URL
-  'british-open-2025': 'https://upload.wikimedia.org/wikipedia/en/d/d0/The_Open_Championship_logo.png',
+  'masters-2025': 'https://logos-world.net/wp-content/uploads/2021/03/Masters-Tournament-Logo.png',
+  'pga-championship-2025': 'https://seeklogo.com/images/P/pga-championship-logo-C8B0F2B6E4-seeklogo.com.png',
+  'us-open-2025': 'https://upload.wikimedia.org/wikipedia/en/7/76/US_Open_%28Golf%29_Logo.png',
+  'british-open-2025': 'https://seeklogo.com/images/T/the-open-championship-logo-A7F647F5D5-seeklogo.com.png',
 };
   // Load tournaments from database
   useEffect(() => {
