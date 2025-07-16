@@ -228,8 +228,11 @@ const GolfMajorPool = () => {
     setLoading(false);
   };
 
-  const saveTournamentData = async () => {
+  const saveTournamentData = async (parValue?: number) => {
     if (!selectedTournament) return;
+
+    // Use the passed par value if provided, otherwise use currentPar
+    const parToSave = parValue !== undefined ? parValue : currentPar;
 
     try {
       await supabase
@@ -239,9 +242,18 @@ const GolfMajorPool = () => {
           name: tournaments[selectedTournament]?.name,
           golfers,
           tiers,
-          par: currentPar,
+          par: parToSave,
           updated_at: new Date().toISOString()
         });
+      
+      // Update the local tournaments state with the new par value
+      setTournaments(prev => ({
+        ...prev,
+        [selectedTournament]: {
+          ...prev[selectedTournament],
+          par: parToSave
+        }
+      }));
     } catch (error) {
       console.error('Error saving tournament data:', error);
     }
@@ -754,8 +766,8 @@ const GolfMajorPool = () => {
                         onChange={async (e) => {
                           const newPar = parseInt(e.target.value) || 72;
                           setCurrentPar(newPar);
-                          // Auto-save when par changes
-                          await saveTournamentData();
+                          // Auto-save when par changes, passing the new value directly
+                          await saveTournamentData(newPar);
                         }}
                         min="68"
                         max="76"
