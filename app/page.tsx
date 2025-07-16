@@ -751,7 +751,12 @@ const GolfMajorPool = () => {
                       <input
                         type="number"
                         value={currentPar}
-                        onChange={(e) => setCurrentPar(parseInt(e.target.value) || 72)}
+                        onChange={async (e) => {
+                          const newPar = parseInt(e.target.value) || 72;
+                          setCurrentPar(newPar);
+                          // Auto-save when par changes
+                          await saveTournamentData();
+                        }}
                         min="68"
                         max="76"
                         className="w-20 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-500 text-center"
@@ -762,8 +767,7 @@ const GolfMajorPool = () => {
                     </div>
                     <div className="mt-3 p-2 sm:p-3 bg-yellow-100 border border-yellow-200 rounded">
                       <p className="text-xs text-yellow-800">
-                        <strong>Note:</strong> Changing par will affect all existing scores. 
-                        Make sure to set this before entering any scores for the tournament.
+                        <strong>✓ Auto-saves:</strong> Par changes are automatically saved to the database.
                       </p>
                     </div>
                   </div>
