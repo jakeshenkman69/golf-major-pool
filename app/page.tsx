@@ -4,26 +4,70 @@ import React, { useState, useEffect } from 'react';
 import { Upload, Users, Trophy, Plus, Trash2, Edit2, Save } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
+// Type definitions
+type Golfer = {
+  name: string;
+  order?: number;
+};
+
+type TierData = {
+  tier1: Golfer[];
+  tier2: Golfer[];
+  tier3: Golfer[];
+  tier4: Golfer[];
+  tier5: Golfer[];
+  tier6: Golfer[];
+};
+
+type Player = {
+  id: string;
+  name: string;
+  picks: Record<string, string>;
+  tournament_key: string;
+  created_at?: string;
+};
+
+type ScoreData = {
+  rounds: (number | null)[];
+  total: number;
+  toPar: number;
+  madeCut: boolean;
+  completedRounds: number;
+};
+
+type TournamentData = {
+  name: string;
+  golfers: Golfer[];
+  tiers: TierData;
+  players: Player[];
+  scores: Record<string, ScoreData>;
+};
+
+type NewPlayer = {
+  name: string;
+  picks: Record<string, string>;
+};
+
 const GolfMajorPool = () => {
-  const [golfers, setGolfers] = useState([]);
-  const [tiers, setTiers] = useState({
+  const [golfers, setGolfers] = useState<Golfer[]>([]);
+  const [tiers, setTiers] = useState<TierData>({
     tier1: [], tier2: [], tier3: [], tier4: [], tier5: [], tier6: []
   });
-  const [players, setPlayers] = useState([]);
-  const [currentScores, setCurrentScores] = useState({});
-  const [activeTab, setActiveTab] = useState('setup');
-  const [newPlayer, setNewPlayer] = useState({ name: '', picks: {} });
-  const [selectedTournament, setSelectedTournament] = useState('');
+  const [players, setPlayers] = useState<Player[]>([]);
+  const [currentScores, setCurrentScores] = useState<Record<string, ScoreData>>({});
+  const [activeTab, setActiveTab] = useState<'setup' | 'players' | 'scores' | 'leaderboard'>('setup');
+  const [newPlayer, setNewPlayer] = useState<NewPlayer>({ name: '', picks: {} });
+  const [selectedTournament, setSelectedTournament] = useState<string>('');
   const currentYear = new Date().getFullYear();
-  const [tournaments, setTournaments] = useState({});
-  const [isAdminMode, setIsAdminMode] = useState(false);
-  const [editingScores, setEditingScores] = useState({});
-  const [showPasswordPrompt, setShowPasswordPrompt] = useState(false);
-  const [passwordInput, setPasswordInput] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [tournaments, setTournaments] = useState<Record<string, TournamentData>>({});
+  const [isAdminMode, setIsAdminMode] = useState<boolean>(false);
+  const [editingScores, setEditingScores] = useState<Record<string, { rounds: (number | null | string)[]; madeCut: boolean }>>({});
+  const [showPasswordPrompt, setShowPasswordPrompt] = useState<boolean>(false);
+  const [passwordInput, setPasswordInput] = useState<string>('');
+  const [loading, setLoading] = useState<boolean>(false);
 
   // Sample data for new tournaments
-  const sampleGolfers = [
+  const sampleGolfers: Golfer[] = [
     { name: 'Scottie Scheffler' }, { name: 'Rory McIlroy' }, { name: 'Jon Rahm' },
     { name: 'Viktor Hovland' }, { name: 'Xander Schauffele' }, { name: 'Collin Morikawa' },
     { name: 'Patrick Cantlay' }, { name: 'Wyndham Clark' }, { name: 'Max Homa' },
@@ -64,12 +108,14 @@ const GolfMajorPool = () => {
 
       if (error) throw error;
 
-      const tournamentMap = {};
-      data.forEach(tournament => {
+      const tournamentMap: Record<string, TournamentData> = {};
+      data?.forEach(tournament => {
         tournamentMap[tournament.tournament_key] = {
           name: tournament.name,
           golfers: tournament.golfers || [],
-          tiers: tournament.tiers || {},
+          tiers: tournament.tiers || {
+            tier1: [], tier2: [], tier3: [], tier4: [], tier5: [], tier6: []
+          },
           players: [],
           scores: {}
         };
@@ -81,7 +127,7 @@ const GolfMajorPool = () => {
     }
   };
 
-  const loadTournamentData = async (tournamentKey) => {
+  const loadTournamentData = async (tournamentKey: string) => {
     setLoading(true);
     try {
       // Load tournament details
@@ -111,10 +157,10 @@ const GolfMajorPool = () => {
       if (scoresError) throw scoresError;
 
       // Process scores into the format our app expects
-      const scoresMap = {};
-      scoresData.forEach(score => {
-        const validRounds = score.rounds?.filter(r => r !== null) || [];
-        const totalScore = validRounds.reduce((sum, round) => sum + round, 0);
+      const scoresMap: Record<string, ScoreData> = {};
+      scoresData?.forEach(score => {
+        const validRounds = score.rounds?.filter((r: any) => r !== null) || [];
+        const totalScore = validRounds.reduce((sum: number, round: number) => sum + round, 0);
         const completedRounds = validRounds.length;
         const par = 72 * completedRounds;
         const toPar = completedRounds > 0 ? totalScore - par : 0;
@@ -130,7 +176,9 @@ const GolfMajorPool = () => {
 
       // Set all the data
       setGolfers(tournamentData.golfers || []);
-      setTiers(tournamentData.tiers || {});
+      setTiers(tournamentData.tiers || {
+        tier1: [], tier2: [], tier3: [], tier4: [], tier5: [], tier6: []
+      });
       setPlayers(playersData || []);
       setCurrentScores(scoresMap);
 
@@ -168,8 +216,8 @@ const GolfMajorPool = () => {
     }
   };
 
-  const organizeTiers = async (golferList) => {
-    const newTiers = {
+  const organizeTiers = async (golferList: Golfer[]) => {
+    const newTiers: TierData = {
       tier1: golferList.slice(0, 10),
       tier2: golferList.slice(10, 20),
       tier3: golferList.slice(20, 30),
@@ -215,7 +263,7 @@ const GolfMajorPool = () => {
     }
   };
 
-  const deletePlayer = async (playerId) => {
+  const deletePlayer = async (playerId: string) => {
     try {
       const { error } = await supabase
         .from('players')
@@ -232,10 +280,10 @@ const GolfMajorPool = () => {
 
   const saveScores = async () => {
     try {
-      const scoreUpdates = [];
+      const scoreUpdates: any[] = [];
       
       Object.entries(editingScores).forEach(([golferName, scoreData]) => {
-        const rounds = scoreData.rounds?.map(r => r === '' || r === null ? null : parseInt(r)) || [null, null, null, null];
+        const rounds = scoreData.rounds?.map(r => r === '' || r === null ? null : parseInt(r as string)) || [null, null, null, null];
         
         if (scoreData.madeCut === false) {
           rounds[2] = 80;
@@ -292,12 +340,12 @@ const GolfMajorPool = () => {
     setPasswordInput('');
   };
 
-  const handleFileUpload = (event) => {
-    const file = event.target.files[0];
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
     if (file) {
       const reader = new FileReader();
       reader.onload = async (e) => {
-        const text = e.target.result;
+        const text = e.target?.result as string;
         const lines = text.split('\n').filter(line => line.trim());
         
         const parsedGolfers = lines.map((line, index) => {
@@ -312,7 +360,7 @@ const GolfMajorPool = () => {
     }
   };
 
-  const updateGolferScore = (golferName, field, value) => {
+  const updateGolferScore = (golferName: string, field: string, value: any) => {
     setEditingScores(prev => ({
       ...prev,
       [golferName]: {
@@ -322,8 +370,8 @@ const GolfMajorPool = () => {
     }));
   };
 
-  const getSelectedGolfers = () => {
-    const selected = new Set();
+  const getSelectedGolfers = (): string[] => {
+    const selected = new Set<string>();
     players.forEach(player => {
       Object.values(player.picks).forEach(golferName => {
         selected.add(golferName);
@@ -334,7 +382,7 @@ const GolfMajorPool = () => {
 
   const initializeEditingScores = () => {
     const selectedGolfers = getSelectedGolfers();
-    const initial = {};
+    const initial: Record<string, { rounds: (number | null)[]; madeCut: boolean }> = {};
     
     selectedGolfers.forEach(golferName => {
       const existing = currentScores[golferName];
@@ -379,10 +427,10 @@ const GolfMajorPool = () => {
         };
       }).filter(Boolean);
 
-      const bestFour = golferScores.sort((a, b) => a.toPar - b.toPar).slice(0, 4);
-      const totalScore = bestFour.reduce((sum, golfer) => sum + golfer.toPar, 0);
+      const bestFour = golferScores.sort((a, b) => a!.toPar - b!.toPar).slice(0, 4);
+      const totalScore = bestFour.reduce((sum, golfer) => sum + golfer!.toPar, 0);
       const lowestIndividualScore = golferScores.length > 0 
-        ? Math.min(...golferScores.map(g => g.toPar))
+        ? Math.min(...golferScores.map(g => g!.toPar))
         : 999;
 
       return {
@@ -402,7 +450,13 @@ const GolfMajorPool = () => {
 
   const leaderboardResults = currentScores ? calculatePlayerScores() : [];
 
-  const TierSelector = ({ tierName, tierNumber, golfers, selectedGolfer, onSelect }) => (
+  const TierSelector = ({ tierName, tierNumber, golfers, selectedGolfer, onSelect }: {
+    tierName: string;
+    tierNumber: number;
+    golfers: Golfer[];
+    selectedGolfer: string | undefined;
+    onSelect: (tierName: string, golfer: string) => void;
+  }) => (
     <div className="mb-3 sm:mb-4">
       <h4 className="font-semibold mb-2 text-blue-600 text-sm sm:text-base">
         Tier {tierNumber} (Positions {(tierNumber-1)*10 + 1}-{tierNumber*10})
@@ -604,10 +658,10 @@ const GolfMajorPool = () => {
               {/* Navigation Tabs */}
               <div className="flex overflow-x-auto space-x-2 sm:space-x-4 mb-4 sm:mb-6 border-b pb-2">
                 {[
-                  ...(isAdminMode ? [{ key: 'setup', label: 'Setup', icon: Upload }] : []),
-                  { key: 'players', label: 'Players', icon: Users },
-                  ...(isAdminMode ? [{ key: 'scores', label: 'Scores', icon: Edit2 }] : []),
-                  { key: 'leaderboard', label: 'Leaderboard', icon: Trophy }
+                  ...(isAdminMode ? [{ key: 'setup' as const, label: 'Setup', icon: Upload }] : []),
+                  { key: 'players' as const, label: 'Players', icon: Users },
+                  ...(isAdminMode ? [{ key: 'scores' as const, label: 'Scores', icon: Edit2 }] : []),
+                  { key: 'leaderboard' as const, label: 'Leaderboard', icon: Trophy }
                 ].map(({ key, label, icon: Icon }) => (
                   <button
                     key={key}
@@ -747,8 +801,8 @@ const GolfMajorPool = () => {
                       });
 
                       const validScores = playerScores.filter(g => g.toPar !== null);
-                      const bestFour = validScores.sort((a, b) => a.toPar - b.toPar).slice(0, 4);
-                      const totalScore = bestFour.reduce((sum, golfer) => sum + golfer.toPar, 0);
+                      const bestFour = validScores.sort((a, b) => a.toPar! - b.toPar!).slice(0, 4);
+                      const totalScore = bestFour.reduce((sum, golfer) => sum + golfer.toPar!, 0);
 
                       return (
                         <div key={player.id} className="bg-white border rounded-lg p-4 shadow-sm">
@@ -897,7 +951,7 @@ const GolfMajorPool = () => {
                             {getSelectedGolfers().map(golferName => {
                               const editing = editingScores[golferName] || { rounds: [null, null, null, null], madeCut: true };
                               const validRounds = editing.rounds.filter(r => r !== null && r !== '');
-                              const total = validRounds.reduce((sum, round) => sum + (parseInt(round) || 0), 0);
+                              const total = validRounds.reduce((sum, round) => sum + (parseInt(round as string) || 0), 0);
                               const completedRounds = validRounds.length;
                               const toPar = completedRounds > 0 ? total - (72 * completedRounds) : 0;
                               
@@ -1026,7 +1080,7 @@ const GolfMajorPool = () => {
                                 </td>
                                 <td className="px-2 py-4 text-center hidden sm:table-cell">
                                   <div className="text-xs space-y-1">
-                                    {player.bestFour.map(golfer => (
+                                    {player.bestFour.map((golfer: any) => (
                                       <div key={golfer.name} className="flex justify-between">
                                         <span className="truncate mr-2 max-w-20">{golfer.name}</span>
                                         <span className={`font-medium ${
