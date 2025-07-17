@@ -1011,10 +1011,24 @@ const tournamentLogos: Record<string, string> = {
         const score = currentScores[golferName];
         if (!score) return null;
         
-        // Simply use the existing toPar from scorecard - no additional calculations needed
+        let liveToPar = score.toPar;
+        
+        // If player is currently playing and has no completed rounds, calculate from current round
+        if (score.madeCut && score.currentRound && score.thru && score.completedRounds === 0) {
+          // For players with no completed rounds but currently playing
+          liveToPar = score.currentRound - currentPar;
+        }
+        // If player has completed rounds AND is currently playing, add current round progress
+        else if (score.madeCut && score.currentRound && score.thru && score.completedRounds > 0) {
+          // Add current round progress to existing toPar
+          const currentRoundToPar = score.currentRound - currentPar;
+          liveToPar = score.toPar + currentRoundToPar;
+        }
+        // Otherwise just use the scorecard's toPar (completed rounds or missed cut)
+        
         return {
           name: golferName,
-          toPar: score.toPar, // Use scorecard's "To Par" value directly
+          toPar: liveToPar,
           madeCut: score.madeCut,
           total: score.total,
           rounds: score.rounds,
