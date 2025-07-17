@@ -212,8 +212,24 @@ const tournamentLogos: Record<string, string> = {
           const validRounds = rounds.filter((r: any) => r !== null);
           const totalScore = validRounds.reduce((sum: number, round: number) => sum + round, 0);
           const completedRounds = validRounds.length;
-          const par = tournamentPar * completedRounds;
-          const toPar = completedRounds > 0 ? totalScore - par : 0;
+          
+          let toPar = 0;
+          
+          // Calculate toPar including current round progress
+          if (completedRounds > 0) {
+            // Has completed rounds: use completed rounds total vs par
+            const par = tournamentPar * completedRounds;
+            toPar = totalScore - par;
+            
+            // Add current round progress if playing
+            if (score.current_round && score.thru) {
+              toPar += (score.current_round - tournamentPar);
+            }
+          } else if (score.current_round && score.thru) {
+            // No completed rounds but currently playing: use current round vs par
+            toPar = score.current_round - tournamentPar;
+          }
+          // else: no completed rounds and not currently playing = 0
 
           scoresMap[score.golfer_name] = {
             rounds: rounds,
@@ -589,6 +605,14 @@ const tournamentLogos: Record<string, string> = {
   const processApiScores = async (apiData: any) => {
     if (!selectedTournament) return;
 
+    console.log('🔍 API Data Sample:', {
+      tournamentName: apiData.tournamentName,
+      tournamentStatus: apiData.tournamentStatus,
+      currentRound: apiData.currentRound,
+      totalPlayers: apiData.leaderboardRows?.length,
+      samplePlayer: apiData.leaderboardRows?.[0]
+    });
+
     const scoreUpdates: any[] = [];
     const processedGolfers = new Set<string>(); // Track already processed golfers
     
@@ -613,6 +637,19 @@ const tournamentLogos: Record<string, string> = {
     const unmatchedApiPlayers: string[] = [];
     
     console.log('Processing', leaderboardRows.length, 'players from API');
+    
+    // Log first few players for debugging
+    console.log('🎯 First 3 API players for verification:');
+    leaderboardRows.slice(0, 3).forEach((player: any, index: number) => {
+      console.log(`${index + 1}. ${player.firstName} ${player.lastName}:`, {
+        status: player.status,
+        toPar: player.toPar,
+        totalStrokes: player.totalStrokes,
+        rounds: player.rounds,
+        currentRound: player.currentRoundScore,
+        thru: player.currentHole
+      });
+    });
     
     leaderboardRows.forEach((player: any) => {
       // Construct full name for matching
@@ -654,6 +691,16 @@ const tournamentLogos: Record<string, string> = {
         const thru = currentHole && !player.roundComplete ? currentHole : null;
         const currentRoundScore = extractNumber(player.currentRoundScore);
 
+        // Log detailed score info for debugging
+        console.log(`📊 Score details for ${golferName}:`, {
+          apiToPar: player.toPar,
+          rounds: rounds,
+          madeCut: madeCut,
+          status: player.status,
+          currentRound: currentRoundScore,
+          thru: thru
+        });
+
         scoreUpdates.push({
           tournament_key: selectedTournament,
           golfer_name: golferName,
@@ -665,15 +712,6 @@ const tournamentLogos: Record<string, string> = {
           updated_at: new Date().toISOString()
         });
         
-        console.log('Updated score for', golferName, {
-          rounds,
-          madeCut,
-          thru,
-          currentRoundScore,
-          originalStatus: player.status,
-          rawCurrentHole: player.currentHole,
-          rawCurrentRoundScore: player.currentRoundScore
-        });
       } else if (golferName && processedGolfers.has(golferName)) {
         console.log('Skipping duplicate:', fullName, '→', golferName, '(already processed)');
       } else {
@@ -682,10 +720,31 @@ const tournamentLogos: Record<string, string> = {
       }
     });
 
+    // Show confirmation dialog before updating scores
     if (scoreUpdates.length > 0) {
+      const sampleUpdates = scoreUpdates.slice(0, 3);
+      console.log('🚨 ABOUT TO UPDATE SCORES - Sample data:');
+      sampleUpdates.forEach(update => {
+        console.log(`${update.golfer_name}: Rounds [${update.rounds.join(', ')}], Made Cut: ${update.made_cut}`);
+      });
+      
+      const proceed = window.confirm(
+        `⚠️ API SCORE UPDATE CONFIRMATION\n\n` +
+        `About to update ${scoreUpdates.length} golfer scores.\n\n` +
+        `Sample updates:\n` +
+        sampleUpdates.map(u => `• ${u.golfer_name}: [${u.rounds.join(', ')}]`).join('\n') +
+        `\n\nThis will overwrite existing scores. Compare with PGA Tour leaderboard first.\n\n` +
+        `Continue with update?`
+      );
+      
+      if (!proceed) {
+        console.log('❌ Score update cancelled by user');
+        setApiStatus('idle');
+        return;
+      }
+      
+      console.log('✅ User confirmed - proceeding with score update');
       console.log('Saving', scoreUpdates.length, 'unique score updates to database');
-      console.log('Sample score update:', scoreUpdates[0]);
-      console.log('Sample rounds data:', scoreUpdates[0].rounds);
       
       const { error } = await supabase
         .from('scores')
@@ -693,67 +752,15 @@ const tournamentLogos: Record<string, string> = {
 
       if (error) {
         console.error('Database error details:', error);
-        console.error('Error message:', error.message);
-        console.error('Error details:', error.details);
         throw new Error(`Database error: ${error.message}`);
       }
 
-      // Reload tournament data to show updated scores (but don't save tournament data)
-      const { data: updatedScoresData, error: scoresError } = await supabase
-        .from('scores')
-        .select('*')
-        .eq('tournament_key', selectedTournament);
-
-      if (!scoresError && updatedScoresData) {
-        // Process scores into the format our app expects
-        const scoresMap: Record<string, ScoreData> = {};
-        updatedScoresData.forEach(score => {
-          if (!score.made_cut) {
-            const rounds = [...(score.rounds || [null, null, null, null])];
-            const penaltyScore = currentPar + 8;
-            rounds[2] = penaltyScore;
-            rounds[3] = penaltyScore;
-            
-            const totalScore = rounds.reduce((sum: number, round: number | null) => sum + (round || 0), 0);
-            const actualRounds = rounds.filter(r => r !== null).length;
-            const toPar = totalScore - (currentPar * 4);
-            
-            scoresMap[score.golfer_name] = {
-              rounds: rounds,
-              total: totalScore,
-              toPar,
-              madeCut: false,
-              completedRounds: actualRounds,
-              thru: score.thru || null,
-              currentRound: score.current_round || null
-            };
-          } else {
-            const rounds = score.rounds || [null, null, null, null];
-            const validRounds = rounds.filter((r: any) => r !== null);
-            const totalScore = validRounds.reduce((sum: number, round: number) => sum + round, 0);
-            const completedRounds = validRounds.length;
-            const par = currentPar * completedRounds;
-            const toPar = completedRounds > 0 ? totalScore - par : 0;
-
-            scoresMap[score.golfer_name] = {
-              rounds: rounds,
-              total: totalScore,
-              toPar,
-              madeCut: true,
-              completedRounds,
-              thru: score.thru || null,
-              currentRound: score.current_round || null
-            };
-          }
-        });
-        
-        // Update the scores state
-        setCurrentScores(scoresMap);
-      }
+      // Reload tournament data to show updated scores
+      await loadTournamentData(selectedTournament);
       
       console.log(`✓ Successfully updated scores for ${scoreUpdates.length} golfers`);
       
-      // Report on unmatched golfers in the tournament
+      // Report on unmatched golfers
       const tournamentGolfers = golfers.map(g => g.name);
       const updatedGolfers = scoreUpdates.map(s => s.golfer_name);
       const unmatchedInTournament = tournamentGolfers.filter(name => !updatedGolfers.includes(name));
