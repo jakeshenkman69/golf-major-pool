@@ -441,6 +441,31 @@ const tournamentLogos: Record<string, string> = {
   };
 
   // SlashGolfAPI Integration Functions
+  const fetchTournamentSchedule = async (year: string = '2025') => {
+    if (!apiKey) return null;
+
+    try {
+      const scheduleUrl = `https://live-golf-data.p.rapidapi.com/schedule?year=${year}&orgId=1`;
+      console.log('Fetching schedule from:', scheduleUrl);
+
+      const response = await fetch(scheduleUrl, {
+        headers: {
+          'X-RapidAPI-Key': apiKey,
+          'X-RapidAPI-Host': 'live-golf-data.p.rapidapi.com'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Schedule data:', data);
+        return data;
+      }
+    } catch (error) {
+      console.error('Error fetching schedule:', error);
+    }
+    return null;
+  };
+
   const fetchLiveScores = async () => {
     if (!apiKey || !tournamentApiId) {
       alert('Please configure your SlashGolf API key and Tournament ID first');
@@ -453,28 +478,66 @@ const tournamentLogos: Record<string, string> = {
 
     try {
       // Parse tournament API ID to get tournId and year
-      // Expected format: "us-open-2025" or "006-2025" 
-      const [tournamentPart, yearPart] = tournamentApiId.split('-');
-      const year = yearPart || new Date().getFullYear().toString();
+      let tournId: string;
+      let year: string;
+
+      if (tournamentApiId.includes('-')) {
+        // Format: "us-open-2025" or "006-2025"
+        const [tournamentPart, yearPart] = tournamentApiId.split('-');
+        year = yearPart || new Date().getFullYear().toString();
+        
+        // If it's already a number, use it directly
+        if (/^\d+$/.test(tournamentPart)) {
+          tournId = tournamentPart;
+        } else {
+          // Try to fetch schedule first to get real tournament IDs
+          const schedule = await fetchTournamentSchedule(year);
+          
+          if (schedule?.schedule) {
+            // Search for tournament by name
+            const tournament = schedule.schedule.find((t: any) => 
+              t.name.toLowerCase().includes(tournamentPart.replace('-', ' '))
+            );
+            
+            if (tournament) {
+              tournId = tournament.tournId;
+              console.log(`Found tournament: ${tournament.name} → ID: ${tournId}`);
+            } else {
+              // Fallback mapping (these might be wrong!)
+              const tournamentMap: Record<string, string> = {
+                'masters': '014',
+                'pga': '003',
+                'us': '006', 
+                'british': '100',
+                'open': '100'
+              };
+              
+              // Try partial matching
+              const mapKey = Object.keys(tournamentMap).find(key => 
+                tournamentPart.toLowerCase().includes(key)
+              );
+              
+              if (mapKey) {
+                tournId = tournamentMap[mapKey];
+                console.log(`Using fallback mapping: ${tournamentPart} → ${tournId}`);
+              } else {
+                throw new Error(`Tournament "${tournamentPart}" not found in schedule. Available tournaments: ${schedule.schedule.map((t: any) => t.name).join(', ')}`);
+              }
+            }
+          } else {
+            throw new Error(`Could not fetch tournament schedule. Please use numeric tournament ID format: "006-2025"`);
+          }
+        }
+      } else {
+        throw new Error(`Invalid format. Use "tournament-year" (e.g., "us-open-2025") or "tournId-year" (e.g., "006-2025")`);
+      }
       
-      // Map tournament names to IDs (you'll need to find these from the schedule endpoint)
-      const tournamentMap: Record<string, string> = {
-        'masters': '014',
-        'pga-championship': '003', 
-        'us-open': '006',
-        'british-open': '100',
-        'the-open': '100'
-      };
-      
-      const tournId = tournamentMap[tournamentPart] || tournamentPart;
-      
-      console.log('Fetching scores for:', { tournId, year, originalInput: tournamentApiId });
+      console.log('Final API call parameters:', { tournId, year, originalInput: tournamentApiId });
       
       // RapidAPI endpoint for leaderboard
       const apiUrl = `https://live-golf-data.p.rapidapi.com/leaderboard?tournId=${tournId}&year=${year}&orgId=1`;
       
       console.log('API URL:', apiUrl);
-      console.log('Using API Key:', apiKey.substring(0, 8) + '...');
       
       const response = await fetch(apiUrl, {
         method: 'GET',
@@ -486,7 +549,6 @@ const tournamentLogos: Record<string, string> = {
       });
 
       console.log('Response status:', response.status);
-      console.log('Response ok:', response.ok);
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -499,10 +561,10 @@ const tournamentLogos: Record<string, string> = {
           throw new Error('Invalid API key. Please check your RapidAPI key.');
         }
         if (response.status === 400) {
-          throw new Error(`Invalid parameters. Check tournament ID format. Expected: "us-open-2025" or "006-2025"`);
+          throw new Error(`Invalid parameters: tournId="${tournId}", year="${year}". Check if this tournament exists for ${year}.`);
         }
         if (response.status === 404) {
-          throw new Error(`Tournament not found. Available IDs: masters-2025, pga-championship-2025, us-open-2025, british-open-2025`);
+          throw new Error(`Tournament not found: tournId="${tournId}" for year "${year}". Try a different tournament ID.`);
         }
         
         throw new Error(`API Error: ${response.status} ${response.statusText} - ${errorText}`);
@@ -1078,8 +1140,9 @@ const tournamentLogos: Record<string, string> = {
                           className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-base text-gray-900 bg-white placeholder-gray-500"
                         />
                         <div className="text-xs text-gray-600 mt-1">
-                          <strong>Format:</strong> tournament-year (e.g., "us-open-2025")<br/>
-                          <strong>Available:</strong> masters, pga-championship, us-open, british-open
+                          <strong>Format:</strong> tournament-year or tournId-year<br/>
+                          <strong>Examples:</strong> "us-open-2025", "masters-2025", or "006-2025"<br/>
+                          <strong>Tip:</strong> Click "Show Schedule" to see available tournament IDs
                         </div>
                       </div>
                     </div>
@@ -1456,6 +1519,28 @@ const tournamentLogos: Record<string, string> = {
                             <span className="sm:hidden">Fetch</span>
                           </>
                         )}
+                      </button>
+                      
+                      <button
+                        onClick={async () => {
+                          if (!apiKey) {
+                            setShowApiConfig(true);
+                            return;
+                          }
+                          const schedule = await fetchTournamentSchedule('2025');
+                          if (schedule?.schedule) {
+                            console.log('Available tournaments for 2025:');
+                            schedule.schedule.forEach((t: any) => 
+                              console.log(`${t.name} → ID: ${t.tournId}`)
+                            );
+                            alert(`Check console for available tournaments. Found ${schedule.schedule.length} tournaments.`);
+                          }
+                        }}
+                        className="flex items-center gap-2 px-4 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 text-sm sm:text-base min-h-[44px]"
+                      >
+                        <span>📅</span>
+                        <span className="hidden sm:inline">Show Schedule</span>
+                        <span className="sm:hidden">Schedule</span>
                       </button>
                       
                       <button
