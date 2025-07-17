@@ -639,17 +639,22 @@ const tournamentLogos: Record<string, string> = {
   };
 
   const updateGolferScore = (golferName: string, field: string, value: any) => {
-    setEditingScores(prev => ({
-      ...prev,
-      [golferName]: {
+    setEditingScores(prev => {
+      const existing = prev[golferName] || {
         rounds: [null, null, null, null],
         madeCut: true,
         thru: undefined,
-        currentRound: undefined,
-        ...prev[golferName],
-        [field]: value
-      }
-    }));
+        currentRound: undefined
+      };
+      
+      return {
+        ...prev,
+        [golferName]: {
+          ...existing,
+          [field]: value
+        }
+      };
+    });
   };
 
   const getSelectedGolfers = (): string[] => {
