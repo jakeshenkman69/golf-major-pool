@@ -1043,7 +1043,7 @@ const tournamentLogos: Record<string, string> = {
       const totalScore = bestFour.reduce((sum: number, golfer) => sum + golfer!.toPar, 0);
       const lowestIndividualScore = golferScores.length > 0 
         ? Math.min(...golferScores.map(g => g!.toPar))
-        : null; // Changed from 999 to null when no scores
+        : 999;
 
       return {
         ...player,
@@ -1056,10 +1056,6 @@ const tournamentLogos: Record<string, string> = {
 
     return results.sort((a, b) => {
       if (a.totalScore !== b.totalScore) return a.totalScore - b.totalScore;
-      // Handle null values in lowestIndividualScore comparison
-      if (a.lowestIndividualScore === null && b.lowestIndividualScore === null) return 0;
-      if (a.lowestIndividualScore === null) return 1; // null values go to end
-      if (b.lowestIndividualScore === null) return -1; // null values go to end
       return a.lowestIndividualScore - b.lowestIndividualScore;
     });
   };
@@ -2042,7 +2038,7 @@ const tournamentLogos: Record<string, string> = {
                     <h3 className="font-semibold text-gray-800">Tournament Leaderboard</h3>
                   </div>
 
-                  {leaderboardResults.length > 0 && players.length > 0 && (
+                  {leaderboardResults.length > 0 && (
                     <div className="bg-white rounded-lg shadow overflow-hidden">
                       <div className="overflow-x-auto">
                         <table className="w-full bg-white text-gray-900">
@@ -2102,16 +2098,12 @@ const tournamentLogos: Record<string, string> = {
                                   </div>
                                 </td>
                                 <td className="px-2 py-4 whitespace-nowrap text-center text-sm">
-                                  {player.lowestIndividualScore !== null ? (
-                                    <span className={`font-medium ${
-                                      player.lowestIndividualScore < 0 ? 'text-red-600' : 
-                                      player.lowestIndividualScore > 0 ? 'text-green-600' : 'text-gray-600'
-                                    }`}>
-                                      {player.lowestIndividualScore > 0 ? '+' : ''}{player.lowestIndividualScore}
-                                    </span>
-                                  ) : (
-                                    <span className="text-gray-400">-</span>
-                                  )}
+                                  <span className={`font-medium ${
+                                    player.lowestIndividualScore < 0 ? 'text-red-600' : 
+                                    player.lowestIndividualScore > 0 ? 'text-green-600' : 'text-gray-600'
+                                  }`}>
+                                    {player.lowestIndividualScore > 0 ? '+' : ''}{player.lowestIndividualScore}
+                                  </span>
                                 </td>
                               </tr>
                             ))}
