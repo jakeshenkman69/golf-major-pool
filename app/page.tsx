@@ -452,27 +452,60 @@ const tournamentLogos: Record<string, string> = {
     setApiError(null);
 
     try {
-      // SlashGolfAPI endpoint - you'll need to adjust this based on their actual API
-      const apiUrl = `https://slashgolf.dev/api/tournament/${tournamentApiId}/leaderboard`;
+      // Parse tournament API ID to get tournId and year
+      // Expected format: "us-open-2025" or "006-2025" 
+      const [tournamentPart, yearPart] = tournamentApiId.split('-');
+      const year = yearPart || new Date().getFullYear().toString();
+      
+      // Map tournament names to IDs (you'll need to find these from the schedule endpoint)
+      const tournamentMap: Record<string, string> = {
+        'masters': '014',
+        'pga-championship': '003', 
+        'us-open': '006',
+        'british-open': '100',
+        'the-open': '100'
+      };
+      
+      const tournId = tournamentMap[tournamentPart] || tournamentPart;
+      
+      console.log('Fetching scores for:', { tournId, year, originalInput: tournamentApiId });
+      
+      // RapidAPI endpoint for leaderboard
+      const apiUrl = `https://live-golf-data.p.rapidapi.com/leaderboard?tournId=${tournId}&year=${year}&orgId=1`;
+      
+      console.log('API URL:', apiUrl);
+      console.log('Using API Key:', apiKey.substring(0, 8) + '...');
       
       const response = await fetch(apiUrl, {
+        method: 'GET',
         headers: {
-          'Authorization': `Bearer ${apiKey}`,
+          'X-RapidAPI-Key': apiKey,
+          'X-RapidAPI-Host': 'live-golf-data.p.rapidapi.com',
           'Content-Type': 'application/json'
         }
       });
 
+      console.log('Response status:', response.status);
+      console.log('Response ok:', response.ok);
+
       if (!response.ok) {
+        const errorText = await response.text();
+        console.log('Error response:', errorText);
+        
         if (response.status === 429) {
           throw new Error('API rate limit exceeded. Please wait before trying again.');
         }
         if (response.status === 401) {
-          throw new Error('Invalid API key. Please check your configuration.');
+          throw new Error('Invalid API key. Please check your RapidAPI key.');
+        }
+        if (response.status === 400) {
+          throw new Error(`Invalid parameters. Check tournament ID format. Expected: "us-open-2025" or "006-2025"`);
         }
         if (response.status === 404) {
-          throw new Error('Tournament not found. Please check the Tournament ID.');
+          throw new Error(`Tournament not found. Available IDs: masters-2025, pga-championship-2025, us-open-2025, british-open-2025`);
         }
-        throw new Error(`API Error: ${response.status} ${response.statusText}`);
+        
+        throw new Error(`API Error: ${response.status} ${response.statusText} - ${errorText}`);
       }
 
       const data = await response.json();
@@ -485,7 +518,7 @@ const tournamentLogos: Record<string, string> = {
       setLastFetchTime(new Date().toISOString());
       
     } catch (error) {
-      console.error('Error fetching live scores:', error);
+      console.error('Detailed error info:', error);
       setApiError(error instanceof Error ? error.message : 'Failed to fetch scores');
       setApiStatus('error');
     }
@@ -496,25 +529,32 @@ const tournamentLogos: Record<string, string> = {
 
     const scoreUpdates: any[] = [];
     
-    // This structure will need to be adjusted based on SlashGolf's actual API response format
-    // Common golf API formats include player arrays with scores, rounds, etc.
-    const players = apiData.players || apiData.leaderboard || apiData.data || [];
+    // SlashGolf API response structure: { leaderboardRows: [...] }
+    const leaderboardRows = apiData.leaderboardRows || [];
     
-    players.forEach((player: any) => {
-      // Find matching golfer in our tournament
-      const golferName = findMatchingGolfer(player.name || player.player_name || player.full_name);
+    console.log('Processing', leaderboardRows.length, 'players from API');
+    
+    leaderboardRows.forEach((player: any) => {
+      // Construct full name for matching
+      const fullName = `${player.firstName} ${player.lastName}`.trim();
+      const golferName = findMatchingGolfer(fullName);
       
       if (golferName) {
-        // Extract round scores - adjust field names based on API response
-        const rounds = [
-          player.round1 || player.scores?.[0] || null,
-          player.round2 || player.scores?.[1] || null,
-          player.round3 || player.scores?.[2] || null,
-          player.round4 || player.scores?.[3] || null
-        ];
+        console.log('Matched player:', fullName, '→', golferName);
+        
+        // Extract round scores from the rounds array
+        const rounds = [null, null, null, null];
+        if (player.rounds && Array.isArray(player.rounds)) {
+          player.rounds.forEach((round: any) => {
+            const roundIndex = (round.roundId || 1) - 1; // Convert to 0-based index
+            if (roundIndex >= 0 && roundIndex < 4) {
+              rounds[roundIndex] = round.strokes || null;
+            }
+          });
+        }
 
         // Determine if player made the cut
-        const madeCut = player.made_cut !== false && player.status !== 'CUT' && player.position !== 'CUT';
+        const madeCut = player.status !== 'cut' && player.status !== 'wd' && player.status !== 'dq';
         
         // Apply missed cut penalty if needed
         if (!madeCut) {
@@ -523,29 +563,50 @@ const tournamentLogos: Record<string, string> = {
           rounds[3] = rounds[3] || penaltyScore;
         }
 
+        // Extract current round progress
+        const thru = player.currentHole && !player.roundComplete ? player.currentHole : null;
+        const currentRoundScore = player.currentRoundScore ? parseInt(player.currentRoundScore) : null;
+
         scoreUpdates.push({
           tournament_key: selectedTournament,
           golfer_name: golferName,
           rounds,
           made_cut: madeCut,
-          thru: player.thru || player.holes_completed || null,
-          current_round: player.current_round || player.today || null,
+          thru,
+          current_round: currentRoundScore,
           updated_at: new Date().toISOString()
         });
+        
+        console.log('Updated score for', golferName, {
+          rounds,
+          madeCut,
+          thru,
+          currentRoundScore,
+          originalStatus: player.status
+        });
+      } else {
+        console.log('No match found for:', fullName);
       }
     });
 
     if (scoreUpdates.length > 0) {
+      console.log('Saving', scoreUpdates.length, 'score updates to database');
+      
       const { error } = await supabase
         .from('scores')
         .upsert(scoreUpdates, { onConflict: 'tournament_key,golfer_name' });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Database error:', error);
+        throw error;
+      }
 
       // Reload tournament data to show updated scores
       await loadTournamentData(selectedTournament);
       
-      console.log(`Updated scores for ${scoreUpdates.length} golfers`);
+      console.log(`✓ Successfully updated scores for ${scoreUpdates.length} golfers`);
+    } else {
+      console.warn('No golfer matches found. Check golfer names in your tournament.');
     }
   };
 
@@ -984,18 +1045,18 @@ const tournamentLogos: Record<string, string> = {
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
                   <div className="bg-white p-4 sm:p-6 rounded-lg shadow-lg max-w-md w-full">
                     <h3 className="text-lg font-semibold mb-4">SlashGolf API Configuration</h3>
-                    <p className="text-gray-600 mb-4 text-sm sm:text-base">Configure your SlashGolf API settings:</p>
+                    <p className="text-gray-600 mb-4 text-sm sm:text-base">Configure your RapidAPI credentials for SlashGolf:</p>
                     
                     <div className="space-y-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          API Key
+                          RapidAPI Key
                         </label>
                         <input
                           type="password"
                           value={apiKey}
                           onChange={(e) => setApiKey(e.target.value)}
-                          placeholder="Enter your SlashGolf API key"
+                          placeholder="Enter your RapidAPI key for SlashGolf"
                           className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-base text-gray-900 bg-white placeholder-gray-500"
                         />
                       </div>
@@ -1013,16 +1074,21 @@ const tournamentLogos: Record<string, string> = {
                               localStorage.setItem('slashgolf_tournament_id', e.target.value);
                             }
                           }}
-                          placeholder="e.g. masters-2025, pga-championship-2025"
+                          placeholder="e.g. us-open-2025, masters-2025, pga-championship-2025"
                           className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-base text-gray-900 bg-white placeholder-gray-500"
                         />
+                        <div className="text-xs text-gray-600 mt-1">
+                          <strong>Format:</strong> tournament-year (e.g., "us-open-2025")<br/>
+                          <strong>Available:</strong> masters, pga-championship, us-open, british-open
+                        </div>
                       </div>
                     </div>
                     
                     <div className="bg-yellow-50 p-3 rounded-lg mt-4 mb-4">
                       <p className="text-xs text-yellow-800">
-                        <strong>Note:</strong> Your API configuration will be stored locally in your browser. 
-                        The Tournament ID should match the identifier used by SlashGolf API for this specific tournament.
+                        <strong>Note:</strong> Your RapidAPI configuration will be stored locally in your browser. 
+                        Get your API key from <strong>RapidAPI → SlashGolf Live Golf Data</strong>. 
+                        The Tournament ID should be in format: tournament-year (e.g., "us-open-2025").
                       </p>
                     </div>
                     
@@ -1139,7 +1205,7 @@ const tournamentLogos: Record<string, string> = {
                   <div className="bg-purple-50 p-3 sm:p-4 rounded-lg">
                     <h3 className="font-semibold mb-2 text-purple-800 text-sm sm:text-base">SlashGolf API Integration</h3>
                     <p className="text-xs sm:text-sm text-purple-600 mb-3">
-                      Configure API settings to automatically fetch live scores for this tournament.
+                      Configure RapidAPI settings to automatically fetch live scores for this tournament.
                     </p>
                     <div className="flex items-center gap-4 mb-3">
                       <label className="text-sm font-medium text-purple-800">
@@ -1154,7 +1220,7 @@ const tournamentLogos: Record<string, string> = {
                             localStorage.setItem('slashgolf_tournament_id', e.target.value);
                           }
                         }}
-                        placeholder="e.g. masters-2025"
+                        placeholder="e.g. us-open-2025"
                         className="flex-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 text-center text-gray-900 bg-white"
                       />
                       <button
@@ -1164,9 +1230,13 @@ const tournamentLogos: Record<string, string> = {
                         Config API
                       </button>
                     </div>
+                    <div className="text-xs text-gray-600 mb-2">
+                      <strong>Format:</strong> tournament-year<br/>
+                      <strong>Examples:</strong> masters-2025, pga-championship-2025, us-open-2025, british-open-2025
+                    </div>
                     <div className="mt-3 p-2 sm:p-3 bg-purple-100 border border-purple-200 rounded">
                       <p className="text-xs text-purple-800">
-                        <strong>API Status:</strong> {(apiKey && tournamentApiId) ? '🔑 Ready to fetch live scores' : '❌ API key or Tournament ID missing'}
+                        <strong>API Status:</strong> {(apiKey && tournamentApiId) ? '🔑 Ready to fetch live scores' : '❌ RapidAPI key or Tournament ID missing'}
                       </p>
                     </div>
                   </div>
