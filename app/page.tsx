@@ -1,7 +1,95 @@
+
+image.png
+
+'use client' import React, { useState, useEffect } from 'react'; import { Upload, Users, Trophy, Plus, Trash2, Edit2, Save } from 'lucide-react'; import { supabase } from '../lib/supabase'; // Type definitions type Golfer = { name: string; order?: number; }; type TierData = { tier1: Golfer[
+
+pasted
+
+claude heres the code to my web app, i'd like to make the leaderboard tab on my application look more like this photo i'm attaching. Also i'd like to hide the players tab from the players view. THis will consolidate the experience for users. also i think it would be a nice touch if it would only expand the players golfers when you clicked on the players name. Can you modify my code to do this?
+
+Edit
+
+Strategized UI modifications for golf major pool web app.
+7s
+
+
+
+
+
+
+
+
+I'll help you modify your golf major pool application to make the leaderboard look more like the photo and implement the other improvements you requested. Let me update the code:
+
+
+Updated Golf Major Pool
+Interactive artifact 
+
+
+
+Retry
+The generated artifact uses libraries we don’t support:
+../lib/supabase
+
+  Can you fix this error in golf-pool-updated?
+
+Edit
+
+Strategized removing Supabase and implementing local state management.
+3s
+
+
+
+I'll fix the Supabase import issue by replacing the database functionality with in-memory state management using React state.
+
+
+Strategized replacing database functions with local state management.
+0s
+
+
+
+Strategized local state replacement for tournament data function.
+1s
+
+
+
+Strategized function modification to remove async and database call.
+1s
+
+
+
+Strategized local state modifications for player management functions.
+0s
+
+
+
+Strategized local state replacement for saveScores function.
+0s
+
+
+
+Strategized refactoring local state update for API function.
+1s
+
+
+
+Updated Golf Major Pool
+Interactive artifact ∙ Version 8 
+
+
+
+Retry
+
+
+
+
+Pasted content
+95.71 KB •2,140 lines
+Formatting may be inconsistent from source
 'use client'
 
 import React, { useState, useEffect } from 'react';
-import { Upload, Users, Trophy, Plus, Trash2, Edit2, Save, Star, Info } from 'lucide-react';
+import { Upload, Users, Trophy, Plus, Trash2, Edit2, Save } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 // Type definitions
@@ -564,7 +652,7 @@ const tournamentLogos: Record<string, string> = {
           throw new Error(`Invalid parameters: tournId="${tournId}", year="${year}". Check if this tournament exists for ${year}.`);
         }
         if (response.status === 404) {
-          throw new Error(`Tournament not found: tournId="${tournId}" for year="${year}". Try a different tournament ID.`);
+          throw new Error(`Tournament not found: tournId="${tournId}" for year "${year}". Try a different tournament ID.`);
         }
         
         throw new Error(`API Error: ${response.status} ${response.statusText} - ${errorText}`);
@@ -779,51 +867,13 @@ const tournamentLogos: Record<string, string> = {
   const findMatchingGolfer = (apiPlayerName: string): string | null => {
     if (!apiPlayerName) return null;
     
-    // Common golf nickname mappings
-    const nicknameMap: Record<string, string> = {
-      'patrick': 'pat',
-      'pat': 'patrick',
-      'robert': 'bob',
-      'bob': 'robert',
-      'william': 'bill',
-      'bill': 'william',
-      'james': 'jim',
-      'jim': 'james',
-      'thomas': 'tom',
-      'tom': 'thomas',
-      'richard': 'rick',
-      'rick': 'richard',
-      'richard': 'dick',
-      'dick': 'richard',
-      'matthew': 'matt',
-      'matt': 'matthew',
-      'michael': 'mike',
-      'mike': 'michael',
-      'christopher': 'chris',
-      'chris': 'christopher',
-      'anthony': 'tony',
-      'tony': 'anthony',
-      'daniel': 'dan',
-      'dan': 'daniel',
-      'andrew': 'andy',
-      'andy': 'andrew',
-      'jonathan': 'jon',
-      'jon': 'jonathan',
-      'samuel': 'sam',
-      'sam': 'samuel',
-      'joseph': 'joe',
-      'joe': 'joseph'
-    };
-    
     // Normalize function to handle special characters and formatting
     const normalizeString = (str: string): string => {
       return str
         .toLowerCase()
         .trim()
         // Remove common suffixes
-        .replace(/\b(jr\.?|sr\.?|iii?|iv|v|r\.?)\b/g, '')
-        // Remove middle initials (single letters with or without periods)
-        .replace(/\b[a-z]\.?\b/g, ' ')
+        .replace(/\b(jr\.?|sr\.?|iii?|iv|r\.?)\b/g, '')
         // Normalize special characters
         .replace(/[àáâãäå]/g, 'a')
         .replace(/[èéêë]/g, 'e')
@@ -840,178 +890,91 @@ const tournamentLogos: Record<string, string> = {
     };
 
     const normalizedApiName = normalizeString(apiPlayerName);
-    console.log(`🔍 Trying to match: "${apiPlayerName}" → normalized: "${normalizedApiName}"`);
+    console.log(`Trying to match: "${apiPlayerName}" → normalized: "${normalizedApiName}"`);
     
     // Try exact match first
     const exactMatch = golfers.find(g => 
       normalizeString(g.name) === normalizedApiName
     );
     if (exactMatch) {
-      console.log(`✅ Exact match: "${apiPlayerName}" → "${exactMatch.name}"`);
+      console.log(`✓ Exact match: "${apiPlayerName}" → "${exactMatch.name}"`);
       return exactMatch.name;
     }
     
-    // Extract name parts for more sophisticated matching
+    // Try last name match (most reliable for golf)
     const apiParts = normalizedApiName.split(' ').filter(p => p.length > 1);
-    const apiFirstName = apiParts[0];
     const apiLastName = apiParts[apiParts.length - 1];
     
-    // Try last name + first name/nickname match
-    if (apiLastName && apiLastName.length > 2 && apiFirstName && apiFirstName.length > 1) {
-      const nameVariationsMatch = golfers.find(g => {
-        const golferParts = normalizeString(g.name).split(' ').filter(p => p.length > 1);
-        if (golferParts.length >= 2) {
-          const golferFirstName = golferParts[0];
-          const golferLastName = golferParts[golferParts.length - 1];
-          
-          // Check if last names match and first names are related
-          if (golferLastName === apiLastName) {
-            // Direct first name match
-            if (golferFirstName === apiFirstName) return true;
-            
-            // Nickname variations
-            if (nicknameMap[golferFirstName] === apiFirstName || 
-                nicknameMap[apiFirstName] === golferFirstName) return true;
-            
-            // First name contains the other (e.g., "Jon" vs "Jonathan")
-            if (golferFirstName.includes(apiFirstName) || apiFirstName.includes(golferFirstName)) {
-              return Math.abs(golferFirstName.length - apiFirstName.length) <= 3;
-            }
-          }
-        }
-        return false;
-      });
-      
-      if (nameVariationsMatch) {
-        console.log(`✅ Name variation match: "${apiPlayerName}" → "${nameVariationsMatch.name}"`);
-        return nameVariationsMatch.name;
-      }
-    }
-    
-    // Try last name only match (most reliable for golf)
     if (apiLastName && apiLastName.length > 2) {
-      const lastNameMatches = golfers.filter(g => {
+      const lastNameMatch = golfers.find(g => {
         const golferParts = normalizeString(g.name).split(' ').filter(p => p.length > 1);
         const golferLastName = golferParts[golferParts.length - 1];
         return golferLastName === apiLastName;
       });
       
-      if (lastNameMatches.length === 1) {
-        console.log(`✅ Unique last name match: "${apiPlayerName}" → "${lastNameMatches[0].name}"`);
-        return lastNameMatches[0].name;
-      } else if (lastNameMatches.length > 1) {
-        console.log(`⚠️ Multiple last name matches for "${apiPlayerName}":`, lastNameMatches.map(g => g.name));
-        // If multiple matches, try to use first name to disambiguate
-        const disambiguated = lastNameMatches.find(g => {
-          const golferFirstName = normalizeString(g.name).split(' ')[0];
-          return golferFirstName.startsWith(apiFirstName.substring(0, 2)) || 
-                 apiFirstName.startsWith(golferFirstName.substring(0, 2));
-        });
-        if (disambiguated) {
-          console.log(`✅ Disambiguated match: "${apiPlayerName}" → "${disambiguated.name}"`);
-          return disambiguated.name;
-        }
+      if (lastNameMatch) {
+        console.log(`✓ Last name match: "${apiPlayerName}" → "${lastNameMatch.name}"`);
+        return lastNameMatch.name;
       }
     }
     
-    // Try fuzzy matching for slight spelling differences
-    const fuzzyMatch = golfers.find(g => {
-      const golferNormalized = normalizeString(g.name);
-      const golferParts = golferNormalized.split(' ').filter(p => p.length > 1);
-      
-      // Calculate similarity score
-      let matchScore = 0;
-      let totalParts = Math.max(apiParts.length, golferParts.length);
-      
-      for (let i = 0; i < Math.min(apiParts.length, golferParts.length); i++) {
-        const apiPart = apiParts[i];
-        const golferPart = golferParts[i];
-        
-        if (apiPart === golferPart) {
-          matchScore += 1;
-        } else if (apiPart.length >= 3 && golferPart.length >= 3) {
-          // Check if parts are very similar (allowing for 1 character difference)
-          const maxLen = Math.max(apiPart.length, golferPart.length);
-          const minLen = Math.min(apiPart.length, golferPart.length);
-          if (maxLen - minLen <= 1) {
-            let differences = 0;
-            for (let j = 0; j < minLen; j++) {
-              if (apiPart[j] !== golferPart[j]) differences++;
-            }
-            if (differences <= 1) matchScore += 0.8;
-          }
-        }
-      }
-      
-      // Require at least 70% similarity
-      return (matchScore / totalParts) >= 0.7;
-    });
-    
-    if (fuzzyMatch) {
-      console.log(`✅ Fuzzy match: "${apiPlayerName}" → "${fuzzyMatch.name}"`);
-      return fuzzyMatch.name;
-    }
-    
-    // Try reversed name order (for names like "Kim Si Woo" vs "Si Woo Kim")
+    // Try first + last name combination
     if (apiParts.length >= 2) {
-      const reversedName = `${apiLastName} ${apiFirstName}`;
-      const reversedMatch = golfers.find(g => {
-        const normalized = normalizeString(g.name);
-        return normalized === reversedName || 
-               normalized.includes(reversedName) || 
-               reversedName.includes(normalized);
+      const apiFirstName = apiParts[0];
+      const firstLastMatch = golfers.find(g => {
+        const golferParts = normalizeString(g.name).split(' ').filter(p => p.length > 1);
+        if (golferParts.length >= 2) {
+          const golferFirstName = golferParts[0];
+          const golferLastName = golferParts[golferParts.length - 1];
+          return golferFirstName === apiFirstName && golferLastName === apiLastName;
+        }
+        return false;
       });
       
+      if (firstLastMatch) {
+        console.log(`✓ First+Last match: "${apiPlayerName}" → "${firstLastMatch.name}"`);
+        return firstLastMatch.name;
+      }
+    }
+    
+    // Try partial name match (contains)
+    const partialMatch = golfers.find(g => {
+      const golferNormalized = normalizeString(g.name);
+      // Check if significant parts of the names overlap
+      const commonWords = apiParts.filter(part => 
+        part.length > 2 && golferNormalized.includes(part)
+      );
+      return commonWords.length >= Math.min(2, apiParts.length);
+    });
+    
+    if (partialMatch) {
+      console.log(`✓ Partial match: "${apiPlayerName}" → "${partialMatch.name}"`);
+      return partialMatch.name;
+    }
+    
+    // Try reversed name order (for Asian names, etc.)
+    if (apiParts.length >= 2) {
+      const reversedName = `${apiLastName} ${apiParts[0]}`;
+      const reversedMatch = golfers.find(g => 
+        normalizeString(g.name).includes(reversedName) || reversedName.includes(normalizeString(g.name))
+      );
+      
       if (reversedMatch) {
-        console.log(`✅ Reversed name match: "${apiPlayerName}" → "${reversedMatch.name}"`);
+        console.log(`✓ Reversed name match: "${apiPlayerName}" → "${reversedMatch.name}"`);
         return reversedMatch.name;
       }
     }
     
-    // Enhanced partial matching
-    const enhancedPartialMatch = golfers.find(g => {
+    console.log(`✗ No match found for: "${apiPlayerName}" (normalized: "${normalizedApiName}")`);
+    
+    // Log available similar names for debugging
+    const similarNames = golfers.filter(g => {
       const golferNormalized = normalizeString(g.name);
-      const golferParts = golferNormalized.split(' ').filter(p => p.length > 1);
-      
-      // Count significant word matches (3+ characters)
-      const significantApiParts = apiParts.filter(p => p.length >= 3);
-      const matchingParts = significantApiParts.filter(apiPart => 
-        golferParts.some(golferPart => 
-          golferPart.includes(apiPart) || apiPart.includes(golferPart)
-        )
-      );
-      
-      // Require at least half of significant parts to match
-      return matchingParts.length >= Math.ceil(significantApiParts.length / 2) && 
-             matchingParts.length >= 1;
-    });
+      return apiParts.some(part => part.length > 2 && golferNormalized.includes(part));
+    }).slice(0, 3);
     
-    if (enhancedPartialMatch) {
-      console.log(`✅ Enhanced partial match: "${apiPlayerName}" → "${enhancedPartialMatch.name}"`);
-      return enhancedPartialMatch.name;
-    }
-    
-    console.log(`❌ No match found for: "${apiPlayerName}" (normalized: "${normalizedApiName}")`);
-    
-    // Enhanced debugging - show potential matches
-    const potentialMatches = golfers.filter(g => {
-      const golferNormalized = normalizeString(g.name);
-      const golferParts = golferNormalized.split(' ').filter(p => p.length > 1);
-      return apiParts.some(apiPart => 
-        golferParts.some(golferPart => 
-          (apiPart.length >= 3 && golferPart.includes(apiPart)) ||
-          (golferPart.length >= 3 && apiPart.includes(golferPart))
-        )
-      );
-    }).slice(0, 5);
-    
-    if (potentialMatches.length > 0) {
-      console.log(`🔍 Potential matches for "${apiPlayerName}":`, potentialMatches.map(g => g.name));
-    }
-    
-    // Show all golfers if no potential matches (for debugging)
-    if (potentialMatches.length === 0) {
-      console.log(`📋 All tournament golfers:`, golfers.map(g => g.name).slice(0, 10));
+    if (similarNames.length > 0) {
+      console.log(`   Similar names in tournament:`, similarNames.map(g => g.name));
     }
     
     return null;
@@ -1653,302 +1616,172 @@ const tournamentLogos: Record<string, string> = {
                 </div>
               )}
 
-              {/* Players Tab - Different view for Admin vs Player */}
+              {/* Players Tab */}
               {activeTab === 'players' && (
                 <div className="space-y-4 sm:space-y-6">
-                  {isAdminMode ? (
-                    <>
-                      {/* Admin View - Add New Player */}
-                      <div className="bg-green-50 p-3 sm:p-4 rounded-lg">
-                        <h3 className="font-semibold mb-3 sm:mb-4 text-green-800 text-sm sm:text-base">Add New Player</h3>
-                        <div className="mb-3 sm:mb-4">
-                          <input
-                            type="text"
-                            placeholder="Player Name"
-                            value={newPlayer.name}
-                            onChange={(e) => setNewPlayer({ ...newPlayer, name: e.target.value })}
-                            className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-green-500 text-base min-h-[44px] text-gray-900 bg-white placeholder-gray-500"
+                  {/* Add New Player - Admin Only */}
+                  {isAdminMode && (
+                    <div className="bg-green-50 p-3 sm:p-4 rounded-lg">
+                      <h3 className="font-semibold mb-3 sm:mb-4 text-green-800 text-sm sm:text-base">Add New Player</h3>
+                      <div className="mb-3 sm:mb-4">
+                        <input
+                          type="text"
+                          placeholder="Player Name"
+                          value={newPlayer.name}
+                          onChange={(e) => setNewPlayer({ ...newPlayer, name: e.target.value })}
+                          className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-green-500 text-base min-h-[44px] text-gray-900 bg-white placeholder-gray-500"
+                        />
+                      </div>
+                      
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                        {Object.entries(tiers).map(([tierName, tierGolfers], index) => (
+                          <TierSelector
+                            key={tierName}
+                            tierName={tierName}
+                            tierNumber={index + 1}
+                            golfers={tierGolfers}
+                            selectedGolfer={newPlayer.picks[tierName]}
+                            onSelect={(tier, golfer) => 
+                              setNewPlayer({ 
+                                ...newPlayer, 
+                                picks: { ...newPlayer.picks, [tier]: golfer }
+                              })
+                            }
                           />
-                        </div>
-                        
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                          {Object.entries(tiers).map(([tierName, tierGolfers], index) => (
-                            <TierSelector
-                              key={tierName}
-                              tierName={tierName}
-                              tierNumber={index + 1}
-                              golfers={tierGolfers}
-                              selectedGolfer={newPlayer.picks[tierName]}
-                              onSelect={(tier, golfer) => 
-                                setNewPlayer({ 
-                                  ...newPlayer, 
-                                  picks: { ...newPlayer.picks, [tier]: golfer }
-                                })
-                              }
-                            />
-                          ))}
-                        </div>
-                        
-                        <button
-                          onClick={addPlayer}
-                          disabled={!newPlayer.name || Object.keys(newPlayer.picks).length !== 6}
-                          className="mt-3 sm:mt-4 flex items-center gap-2 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 text-base min-h-[44px]"
-                        >
-                          <Plus size={20} />
-                          Add Player
-                        </button>
+                        ))}
                       </div>
-
-                      {/* Admin View - Current Players */}
-                      <div className="space-y-3">
-                        <h3 className="font-semibold text-gray-800">Current Players ({players.length})</h3>
-                        {players.map(player => {
-                          // Calculate player's current performance
-                          const playerScores = Object.values(player.picks).map(golferName => {
-                            const score = currentScores[golferName];
-                            if (!score) return { name: golferName, toPar: null, status: 'No score' };
-                            
-                            if (!score.madeCut) {
-                              const rounds = [...score.rounds];
-                              const penaltyScore = currentPar + 8;
-                              rounds[2] = penaltyScore;
-                              rounds[3] = penaltyScore;
-                              const cutScore = rounds.reduce((sum: number, round) => sum + (round || 0), 0);
-                              return {
-                                name: golferName,
-                                toPar: cutScore - (currentPar * 4),
-                                status: 'MC',
-                                rounds: rounds
-                              };
-                            }
-                            
-                            return {
-                              name: golferName,
-                              toPar: score.toPar,
-                              status: score.completedRounds < 4 ? `${score.completedRounds || 0}/4` : 'Done',
-                              rounds: score.rounds
-                            };
-                          });
-
-                          const validScores = playerScores.filter(g => g.toPar !== null);
-                          const bestFour = validScores.sort((a, b) => a.toPar! - b.toPar!).slice(0, 4);
-                          const totalScore = bestFour.reduce((sum: number, golfer) => sum + golfer.toPar!, 0);
-
-                          return (
-                            <div key={player.id} className="bg-white border rounded-lg p-4 shadow-sm">
-                              {/* Player Header */}
-                              <div className="flex justify-between items-center mb-3">
-                                <div className="flex flex-col sm:flex-row sm:items-center sm:gap-3">
-                                  <h4 className="font-semibold text-lg">{player.name}</h4>
-                                  {validScores.length > 0 && (
-                                    <span className={`inline-block px-3 py-1 rounded-full text-sm font-bold mt-1 sm:mt-0 ${
-                                      totalScore < 0 ? 'bg-red-100 text-red-700' : 
-                                      totalScore > 0 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
-                                    }`}>
-                                      {totalScore > 0 ? '+' : ''}{totalScore}
-                                      {bestFour.length < 4 && <span className="text-xs ml-1">({bestFour.length}/4)</span>}
-                                    </span>
-                                  )}
-                                </div>
-                                <button
-                                  onClick={() => deletePlayer(player.id)}
-                                  className="text-red-500 hover:text-red-700 p-2 hover:bg-red-50 rounded"
-                                >
-                                  <Trash2 size={16} />
-                                </button>
-                              </div>
-                              
-                              {/* Mobile: Stack view, Desktop: Grid view */}
-                              <div className="space-y-2 sm:space-y-0 sm:grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 sm:gap-2">
-                                {Object.entries(player.picks).map(([tier, golfer], index) => {
-                                  const golferScore = playerScores.find(g => g.name === golfer);
-                                  const isInBestFour = bestFour.some(g => g.name === golfer);
-                                  
-                                  return (
-                                    <div key={tier} className={`p-3 rounded-lg border ${
-                                      isInBestFour 
-                                        ? 'bg-blue-50 border-blue-200 ring-1 ring-blue-300' 
-                                        : 'bg-gray-50 border-gray-200'
-                                    }`}>
-                                      {/* Mobile: Horizontal layout */}
-                                      <div className="flex justify-between items-center sm:flex-col sm:items-start">
-                                        <div className="flex-1 sm:w-full">
-                                          <div className="flex items-center gap-2 mb-1 sm:mb-2">
-                                            <span className="text-xs font-medium text-gray-600 bg-white px-2 py-1 rounded">
-                                              T{index + 1}
-                                            </span>
-                                            {isInBestFour && (
-                                              <span className="text-xs bg-blue-600 text-white px-2 py-1 rounded sm:hidden">
-                                                ★
-                                              </span>
-                                            )}
-                                          </div>
-                                          <div className="font-medium text-sm text-gray-800 mb-1 leading-tight">
-                                            {golfer}
-                                          </div>
-                                        </div>
-                                        
-                                        {/* Score section */}
-                                        <div className="flex flex-col items-end sm:items-start sm:w-full">
-                                          {golferScore && (
-                                            <>
-                                              {golferScore.toPar !== null ? (
-                                                <>
-                                                  <span className={`font-bold text-base sm:text-sm ${
-                                                    golferScore.toPar < 0 ? 'text-red-600' : 
-                                                    golferScore.toPar > 0 ? 'text-green-600' : 'text-gray-600'
-                                                  }`}>
-                                                    {golferScore.toPar > 0 ? '+' : ''}{golferScore.toPar}
-                                                  </span>
-                                                  <span className="text-xs text-gray-500">{golferScore.status}</span>
-                                                </>
-                                              ) : (
-                                                <span className="text-gray-500 text-sm">-</span>
-                                              )}
-                                            </>
-                                          )}
-                                        </div>
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </>
-                  ) : (
-                    /* Player View - Leaderboard Style */
-                    <>
-                      {/* Score Update Timestamp for Players */}
-                      <div className="bg-blue-50 p-3 sm:p-4 rounded-lg mb-4">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-medium text-blue-800">
-                            Scores last checked:
-                          </span>
-                          <span className="text-sm text-blue-600">
-                            {lastFetchTime 
-                              ? new Date(lastFetchTime).toLocaleString('en-US', {
-                                  month: 'short',
-                                  day: 'numeric',
-                                  hour: 'numeric',
-                                  minute: '2-digit',
-                                  hour12: true
-                                })
-                              : 'Never updated'
-                            }
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="bg-white rounded-lg shadow-sm border">
-                      {leaderboardResults.length > 0 ? (
-                        <div className="divide-y divide-gray-200">
-                          {leaderboardResults.map((result, index) => {
-                            const isCurrentPlayerFirst = index === 0;
-                            
-                            return (
-                              <div
-                                key={result.id}
-                                className={`p-4 ${isCurrentPlayerFirst ? 'bg-yellow-50 border-l-4 border-yellow-400' : ''}`}
-                              >
-                                {/* Player Header */}
-                                <div className="flex items-center justify-between mb-3">
-                                  <div className="flex items-center gap-3">
-                                    <div className="flex items-center gap-2">
-                                      <Star
-                                        className={`w-5 h-5 ${isCurrentPlayerFirst ? 'text-yellow-500 fill-current' : 'text-gray-300'}`}
-                                      />
-                                      <span className="text-lg font-bold text-gray-900">
-                                        {index + 1}
-                                      </span>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                      <span className="text-lg font-semibold text-gray-900">
-                                        {result.name}
-                                      </span>
-                                      <Info className="w-4 h-4 text-gray-400" />
-                                    </div>
-                                  </div>
-                                  <div className={`text-xl font-bold ${
-                                    result.totalScore < 0 ? 'text-red-600' : 
-                                    result.totalScore > 0 ? 'text-green-600' : 'text-gray-600'
-                                  }`}>
-                                    {result.totalScore > 0 ? '+' : ''}{result.totalScore}
-                                  </div>
-                                </div>
-
-                                {/* Golfers List */}
-                                <div className="space-y-2">
-                                  {result.golferScores.map((golfer: any) => {
-                                    const isInBestFour = result.bestFour.some((bg: any) => bg.name === golfer.name);
-                                    const isMissedCut = !golfer.madeCut;
-                                    
-                                    return (
-                                      <div
-                                        key={golfer.name}
-                                        className={`flex items-center justify-between py-2 px-3 rounded ${
-                                          isInBestFour ? 'bg-blue-50 border border-blue-200' : 'bg-gray-50'
-                                        }`}
-                                      >
-                                        <div className="flex items-center gap-3">
-                                          <span className={`text-sm font-medium ${
-                                            isMissedCut ? 'line-through text-gray-500' : 'text-gray-900'
-                                          }`}>
-                                            {golfer.name}
-                                          </span>
-                                          {isMissedCut && (
-                                            <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded">
-                                              CUT
-                                            </span>
-                                          )}
-                                        </div>
-
-                                        <div className="flex items-center gap-4">
-                                          {/* Total Score */}
-                                          <span className={`font-bold ${
-                                            golfer.toPar < 0 ? 'text-red-600' : 
-                                            golfer.toPar > 0 ? 'text-green-600' : 'text-gray-600'
-                                          }`}>
-                                            {golfer.toPar > 0 ? '+' : ''}{golfer.toPar}
-                                          </span>
-
-                                          {/* Round Scores */}
-                                          <div className="flex items-center gap-1 text-sm">
-                                            <span className="text-gray-500">
-                                              {golfer.completedRounds >= 4 ? 'F' : `R${golfer.completedRounds || 0}`}
-                                            </span>
-                                            {golfer.rounds && golfer.rounds.map((round: number | null, roundIndex: number) => (
-                                              <span
-                                                key={roundIndex}
-                                                className={`ml-1 ${
-                                                  round === null ? 'text-gray-400' : 
-                                                  isMissedCut && roundIndex >= 2 ? 'text-red-600 font-medium' : 'text-gray-700'
-                                                }`}
-                                              >
-                                                {round || '-'}
-                                              </span>
-                                            ))}
-                                          </div>
-                                        </div>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        <div className="text-center py-8 text-gray-500">
-                          <p>No players have been added yet</p>
-                          <p className="text-sm mt-2">Ask an admin to add players to see the leaderboard</p>
-                        </div>
-                      )}
+                      
+                      <button
+                        onClick={addPlayer}
+                        disabled={!newPlayer.name || Object.keys(newPlayer.picks).length !== 6}
+                        className="mt-3 sm:mt-4 flex items-center gap-2 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 text-base min-h-[44px]"
+                      >
+                        <Plus size={20} />
+                        Add Player
+                      </button>
                     </div>
-                    </>
                   )}
+
+                  {/* Current Players */}
+                  <div className="space-y-3">
+                    <h3 className="font-semibold text-gray-800">Current Players ({players.length})</h3>
+                    {players.map(player => {
+                      // Calculate player's current performance
+                      const playerScores = Object.values(player.picks).map(golferName => {
+                        const score = currentScores[golferName];
+                        if (!score) return { name: golferName, toPar: null, status: 'No score' };
+                        
+                        if (!score.madeCut) {
+                          const rounds = [...score.rounds];
+                          const penaltyScore = currentPar + 8;
+                          rounds[2] = penaltyScore;
+                          rounds[3] = penaltyScore;
+                          const cutScore = rounds.reduce((sum: number, round) => sum + (round || 0), 0);
+                          return {
+                            name: golferName,
+                            toPar: cutScore - (currentPar * 4),
+                            status: 'MC',
+                            rounds: rounds
+                          };
+                        }
+                        
+                        return {
+                          name: golferName,
+                          toPar: score.toPar,
+                          status: score.completedRounds < 4 ? `${score.completedRounds || 0}/4` : 'Done',
+                          rounds: score.rounds
+                        };
+                      });
+
+                      const validScores = playerScores.filter(g => g.toPar !== null);
+                      const bestFour = validScores.sort((a, b) => a.toPar! - b.toPar!).slice(0, 4);
+                      const totalScore = bestFour.reduce((sum: number, golfer) => sum + golfer.toPar!, 0);
+
+                      return (
+                        <div key={player.id} className="bg-white border rounded-lg p-4 shadow-sm">
+                          {/* Player Header */}
+                          <div className="flex justify-between items-center mb-3">
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:gap-3">
+                              <h4 className="font-semibold text-lg">{player.name}</h4>
+                              {validScores.length > 0 && (
+                                <span className={`inline-block px-3 py-1 rounded-full text-sm font-bold mt-1 sm:mt-0 ${
+                                  totalScore < 0 ? 'bg-red-100 text-red-700' : 
+                                  totalScore > 0 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
+                                }`}>
+                                  {totalScore > 0 ? '+' : ''}{totalScore}
+                                  {bestFour.length < 4 && <span className="text-xs ml-1">({bestFour.length}/4)</span>}
+                                </span>
+                              )}
+                            </div>
+                            {isAdminMode && (
+                              <button
+                                onClick={() => deletePlayer(player.id)}
+                                className="text-red-500 hover:text-red-700 p-2 hover:bg-red-50 rounded"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            )}
+                          </div>
+                          
+                          {/* Mobile: Stack view, Desktop: Grid view */}
+                          <div className="space-y-2 sm:space-y-0 sm:grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 sm:gap-2">
+                            {Object.entries(player.picks).map(([tier, golfer], index) => {
+                              const golferScore = playerScores.find(g => g.name === golfer);
+                              const isInBestFour = bestFour.some(g => g.name === golfer);
+                              
+                              return (
+                                <div key={tier} className={`p-3 rounded-lg border ${
+                                  isInBestFour 
+                                    ? 'bg-blue-50 border-blue-200 ring-1 ring-blue-300' 
+                                    : 'bg-gray-50 border-gray-200'
+                                }`}>
+                                  {/* Mobile: Horizontal layout */}
+                                  <div className="flex justify-between items-center sm:flex-col sm:items-start">
+                                    <div className="flex-1 sm:w-full">
+                                      <div className="flex items-center gap-2 mb-1 sm:mb-2">
+                                        <span className="text-xs font-medium text-gray-600 bg-white px-2 py-1 rounded">
+                                          T{index + 1}
+                                        </span>
+                                        {isInBestFour && (
+                                          <span className="text-xs bg-blue-600 text-white px-2 py-1 rounded sm:hidden">
+                                            ★
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div className="font-medium text-sm text-gray-800 mb-1 leading-tight">
+                                        {golfer}
+                                      </div>
+                                    </div>
+                                    
+                                    {/* Score section */}
+                                    <div className="flex flex-col items-end sm:items-start sm:w-full">
+                                      {golferScore && (
+                                        <>
+                                          {golferScore.toPar !== null ? (
+                                            <>
+                                              <span className={`font-bold text-base sm:text-sm ${
+                                                golferScore.toPar < 0 ? 'text-red-600' : 
+                                                golferScore.toPar > 0 ? 'text-green-600' : 'text-gray-600'
+                                              }`}>
+                                                {golferScore.toPar > 0 ? '+' : ''}{golferScore.toPar}
+                                              </span>
+                                              <span className="text-xs text-gray-500">{golferScore.status}</span>
+                                            </>
+                                          ) : (
+                                            <span className="text-gray-500 text-sm">-</span>
+                                          )}
+                                        </>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
 
