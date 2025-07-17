@@ -1011,25 +1011,10 @@ const tournamentLogos: Record<string, string> = {
         const score = currentScores[golferName];
         if (!score) return null;
         
-        // Start with the existing toPar from scorecard calculation
-        let liveToPar = score.toPar;
-        
-        // If player is currently playing, add projected current round to par
-        if (score.madeCut && score.currentRound && score.thru) {
-          const holesCompleted = score.thru;
-          const currentRoundScore = score.currentRound;
-          const remainingHoles = 18 - holesCompleted;
-          const avgPerHole = currentRoundScore / holesCompleted;
-          const projectedRoundTotal = Math.round(currentRoundScore + (avgPerHole * remainingHoles));
-          const projectedToPar = projectedRoundTotal - currentPar;
-          
-          // Add the projected current round to par to the existing base toPar
-          liveToPar = score.toPar + projectedToPar;
-        }
-        
+        // Simply use the existing toPar from scorecard - no additional calculations needed
         return {
           name: golferName,
-          toPar: liveToPar,
+          toPar: score.toPar, // Use scorecard's "To Par" value directly
           madeCut: score.madeCut,
           total: score.total,
           rounds: score.rounds,
