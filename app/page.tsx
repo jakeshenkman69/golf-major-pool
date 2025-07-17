@@ -221,13 +221,13 @@ const tournamentLogos: Record<string, string> = {
             const par = tournamentPar * completedRounds;
             toPar = totalScore - par;
             
-            // Add current round progress if playing
+            // Add current round progress if playing (current_round is already vs par)
             if (score.current_round && score.thru) {
-              toPar += (score.current_round - tournamentPar);
+              toPar += score.current_round;
             }
           } else if (score.current_round && score.thru) {
-            // No completed rounds but currently playing: use current round vs par
-            toPar = score.current_round - tournamentPar;
+            // No completed rounds but currently playing: current_round is already vs par
+            toPar = score.current_round;
           }
           // else: no completed rounds and not currently playing = 0
 
