@@ -610,6 +610,7 @@ const tournamentLogos: Record<string, string> = {
     
     // SlashGolf API response structure: { leaderboardRows: [...] }
     const leaderboardRows = apiData.leaderboardRows || [];
+    const unmatchedApiPlayers: string[] = [];
     
     console.log('Processing', leaderboardRows.length, 'players from API');
     
@@ -677,6 +678,7 @@ const tournamentLogos: Record<string, string> = {
         console.log('Skipping duplicate:', fullName, '→', golferName, '(already processed)');
       } else {
         console.log('No match found for:', fullName);
+        unmatchedApiPlayers.push(fullName);
       }
     });
 
@@ -696,10 +698,79 @@ const tournamentLogos: Record<string, string> = {
         throw new Error(`Database error: ${error.message}`);
       }
 
-      // Reload tournament data to show updated scores
-      await loadTournamentData(selectedTournament);
+      // Reload tournament data to show updated scores (but don't save tournament data)
+      const { data: updatedScoresData, error: scoresError } = await supabase
+        .from('scores')
+        .select('*')
+        .eq('tournament_key', selectedTournament);
+
+      if (!scoresError && updatedScoresData) {
+        // Process scores into the format our app expects
+        const scoresMap: Record<string, ScoreData> = {};
+        updatedScoresData.forEach(score => {
+          if (!score.made_cut) {
+            const rounds = [...(score.rounds || [null, null, null, null])];
+            const penaltyScore = currentPar + 8;
+            rounds[2] = penaltyScore;
+            rounds[3] = penaltyScore;
+            
+            const totalScore = rounds.reduce((sum: number, round: number | null) => sum + (round || 0), 0);
+            const actualRounds = rounds.filter(r => r !== null).length;
+            const toPar = totalScore - (currentPar * 4);
+            
+            scoresMap[score.golfer_name] = {
+              rounds: rounds,
+              total: totalScore,
+              toPar,
+              madeCut: false,
+              completedRounds: actualRounds,
+              thru: score.thru || null,
+              currentRound: score.current_round || null
+            };
+          } else {
+            const rounds = score.rounds || [null, null, null, null];
+            const validRounds = rounds.filter((r: any) => r !== null);
+            const totalScore = validRounds.reduce((sum: number, round: number) => sum + round, 0);
+            const completedRounds = validRounds.length;
+            const par = currentPar * completedRounds;
+            const toPar = completedRounds > 0 ? totalScore - par : 0;
+
+            scoresMap[score.golfer_name] = {
+              rounds: rounds,
+              total: totalScore,
+              toPar,
+              madeCut: true,
+              completedRounds,
+              thru: score.thru || null,
+              currentRound: score.current_round || null
+            };
+          }
+        });
+        
+        // Update the scores state
+        setCurrentScores(scoresMap);
+      }
       
       console.log(`✓ Successfully updated scores for ${scoreUpdates.length} golfers`);
+      
+      // Report on unmatched golfers in the tournament
+      const tournamentGolfers = golfers.map(g => g.name);
+      const updatedGolfers = scoreUpdates.map(s => s.golfer_name);
+      const unmatchedInTournament = tournamentGolfers.filter(name => !updatedGolfers.includes(name));
+      
+      if (unmatchedInTournament.length > 0) {
+        console.log(`⚠️ ${unmatchedInTournament.length} golfers in your tournament didn't get API updates:`);
+        unmatchedInTournament.forEach(name => console.log(`   - ${name}`));
+        console.log('These golfers may not be playing in this tournament or have different names in the API.');
+      }
+      
+      if (unmatchedApiPlayers.length > 0) {
+        console.log(`📋 ${unmatchedApiPlayers.length} players from API couldn't be matched to your tournament:`);
+        unmatchedApiPlayers.slice(0, 10).forEach(name => console.log(`   - ${name}`));
+        if (unmatchedApiPlayers.length > 10) {
+          console.log(`   ... and ${unmatchedApiPlayers.length - 10} more`);
+        }
+      }
     } else {
       console.warn('No golfer matches found. Check golfer names in your tournament.');
     }
@@ -708,22 +779,117 @@ const tournamentLogos: Record<string, string> = {
   const findMatchingGolfer = (apiPlayerName: string): string | null => {
     if (!apiPlayerName) return null;
     
-    // Normalize the name for matching
-    const normalized = apiPlayerName.toLowerCase().trim();
+    // Normalize function to handle special characters and formatting
+    const normalizeString = (str: string): string => {
+      return str
+        .toLowerCase()
+        .trim()
+        // Remove common suffixes
+        .replace(/\b(jr\.?|sr\.?|iii?|iv|r\.?)\b/g, '')
+        // Normalize special characters
+        .replace(/[àáâãäå]/g, 'a')
+        .replace(/[èéêë]/g, 'e')
+        .replace(/[ìíîï]/g, 'i')
+        .replace(/[òóôõöø]/g, 'o')
+        .replace(/[ùúûü]/g, 'u')
+        .replace(/[ýÿ]/g, 'y')
+        .replace(/[ñ]/g, 'n')
+        .replace(/[ç]/g, 'c')
+        .replace(/[ß]/g, 'ss')
+        // Remove extra whitespace
+        .replace(/\s+/g, ' ')
+        .trim();
+    };
+
+    const normalizedApiName = normalizeString(apiPlayerName);
+    console.log(`Trying to match: "${apiPlayerName}" → normalized: "${normalizedApiName}"`);
     
     // Try exact match first
-    const exactMatch = golfers.find(g => g.name.toLowerCase() === normalized);
-    if (exactMatch) return exactMatch.name;
+    const exactMatch = golfers.find(g => 
+      normalizeString(g.name) === normalizedApiName
+    );
+    if (exactMatch) {
+      console.log(`✓ Exact match: "${apiPlayerName}" → "${exactMatch.name}"`);
+      return exactMatch.name;
+    }
     
-    // Try partial matches (last name, etc.)
+    // Try last name match (most reliable for golf)
+    const apiParts = normalizedApiName.split(' ').filter(p => p.length > 1);
+    const apiLastName = apiParts[apiParts.length - 1];
+    
+    if (apiLastName && apiLastName.length > 2) {
+      const lastNameMatch = golfers.find(g => {
+        const golferParts = normalizeString(g.name).split(' ').filter(p => p.length > 1);
+        const golferLastName = golferParts[golferParts.length - 1];
+        return golferLastName === apiLastName;
+      });
+      
+      if (lastNameMatch) {
+        console.log(`✓ Last name match: "${apiPlayerName}" → "${lastNameMatch.name}"`);
+        return lastNameMatch.name;
+      }
+    }
+    
+    // Try first + last name combination
+    if (apiParts.length >= 2) {
+      const apiFirstName = apiParts[0];
+      const firstLastMatch = golfers.find(g => {
+        const golferParts = normalizeString(g.name).split(' ').filter(p => p.length > 1);
+        if (golferParts.length >= 2) {
+          const golferFirstName = golferParts[0];
+          const golferLastName = golferParts[golferParts.length - 1];
+          return golferFirstName === apiFirstName && golferLastName === apiLastName;
+        }
+        return false;
+      });
+      
+      if (firstLastMatch) {
+        console.log(`✓ First+Last match: "${apiPlayerName}" → "${firstLastMatch.name}"`);
+        return firstLastMatch.name;
+      }
+    }
+    
+    // Try partial name match (contains)
     const partialMatch = golfers.find(g => {
-      const golferName = g.name.toLowerCase();
-      const lastName = golferName.split(' ').pop() || '';
-      const apiLastName = normalized.split(' ').pop() || '';
-      return lastName === apiLastName && lastName.length > 2;
+      const golferNormalized = normalizeString(g.name);
+      // Check if significant parts of the names overlap
+      const commonWords = apiParts.filter(part => 
+        part.length > 2 && golferNormalized.includes(part)
+      );
+      return commonWords.length >= Math.min(2, apiParts.length);
     });
     
-    return partialMatch?.name || null;
+    if (partialMatch) {
+      console.log(`✓ Partial match: "${apiPlayerName}" → "${partialMatch.name}"`);
+      return partialMatch.name;
+    }
+    
+    // Try reversed name order (for Asian names, etc.)
+    if (apiParts.length >= 2) {
+      const reversedName = `${apiLastName} ${apiParts[0]}`;
+      const reversedMatch = golfers.find(g => 
+        normalizeString(g.name).includes(reversedName) || reversedName.includes(normalizeString(g.name))
+      );
+      
+      if (reversedMatch) {
+        console.log(`✓ Reversed name match: "${apiPlayerName}" → "${reversedMatch.name}"`);
+        return reversedMatch.name;
+      }
+    }
+    
+    console.log(`✗ No match found for: "${apiPlayerName}" (normalized: "${normalizedApiName}")`);
+    
+    // Log available similar names for debugging
+    const similarNames = golfers.filter(g => {
+      const golferNormalized = normalizeString(g.name);
+      return apiParts.some(part => part.length > 2 && golferNormalized.includes(part));
+    }).slice(0, 3);
+    
+    if (similarNames.length > 0) {
+      console.log(`   Similar names in tournament:`, similarNames.map(g => g.name));
+    }
+    
+    return null;
   };
 
   const saveApiKey = (key: string) => {
@@ -1533,57 +1699,61 @@ const tournamentLogos: Record<string, string> = {
                   <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
                     <h3 className="font-semibold text-gray-800">Tournament Scorecard</h3>
                     <div className="flex flex-wrap gap-2">
-                      {/* API Controls */}
-                      <button
-                        onClick={() => fetchLiveScores()}
-                        disabled={apiStatus === 'loading'}
-                        className="flex items-center gap-2 px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-400 text-sm sm:text-base min-h-[44px]"
-                      >
-                        {apiStatus === 'loading' ? (
-                          <>
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                            <span className="hidden sm:inline">Fetching...</span>
-                            <span className="sm:hidden">Loading</span>
-                          </>
-                        ) : (
-                          <>
-                            <span>🔄</span>
-                            <span className="hidden sm:inline">Fetch Live Scores</span>
-                            <span className="sm:hidden">Fetch</span>
-                          </>
-                        )}
-                      </button>
-                      
-                      <button
-                        onClick={async () => {
-                          if (!apiKey) {
-                            setShowApiConfig(true);
-                            return;
-                          }
-                          const schedule = await fetchTournamentSchedule('2025');
-                          if (schedule?.schedule) {
-                            console.log('Available tournaments for 2025:');
-                            schedule.schedule.forEach((t: any) => 
-                              console.log(`${t.name} → ID: ${t.tournId}`)
-                            );
-                            alert(`Check console for available tournaments. Found ${schedule.schedule.length} tournaments.`);
-                          }
-                        }}
-                        className="flex items-center gap-2 px-4 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 text-sm sm:text-base min-h-[44px]"
-                      >
-                        <span>📅</span>
-                        <span className="hidden sm:inline">Show Schedule</span>
-                        <span className="sm:hidden">Schedule</span>
-                      </button>
-                      
-                      <button
-                        onClick={() => setShowApiConfig(true)}
-                        className="flex items-center gap-2 px-4 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 text-sm sm:text-base min-h-[44px]"
-                      >
-                        <span>⚙️</span>
-                        <span className="hidden sm:inline">API Config</span>
-                        <span className="sm:hidden">Config</span>
-                      </button>
+                      {/* API Controls - Admin Only */}
+                      {isAdminMode && (
+                        <>
+                          <button
+                            onClick={() => fetchLiveScores()}
+                            disabled={apiStatus === 'loading'}
+                            className="flex items-center gap-2 px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-400 text-sm sm:text-base min-h-[44px]"
+                          >
+                            {apiStatus === 'loading' ? (
+                              <>
+                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                                <span className="hidden sm:inline">Fetching...</span>
+                                <span className="sm:hidden">Loading</span>
+                              </>
+                            ) : (
+                              <>
+                                <span>🔄</span>
+                                <span className="hidden sm:inline">Fetch Live Scores</span>
+                                <span className="sm:hidden">Fetch</span>
+                              </>
+                            )}
+                          </button>
+                          
+                          <button
+                            onClick={async () => {
+                              if (!apiKey) {
+                                setShowApiConfig(true);
+                                return;
+                              }
+                              const schedule = await fetchTournamentSchedule('2025');
+                              if (schedule?.schedule) {
+                                console.log('Available tournaments for 2025:');
+                                schedule.schedule.forEach((t: any) => 
+                                  console.log(`${t.name} → ID: ${t.tournId}`)
+                                );
+                                alert(`Check console for available tournaments. Found ${schedule.schedule.length} tournaments.`);
+                              }
+                            }}
+                            className="flex items-center gap-2 px-4 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 text-sm sm:text-base min-h-[44px]"
+                          >
+                            <span>📅</span>
+                            <span className="hidden sm:inline">Show Schedule</span>
+                            <span className="sm:hidden">Schedule</span>
+                          </button>
+                          
+                          <button
+                            onClick={() => setShowApiConfig(true)}
+                            className="flex items-center gap-2 px-4 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 text-sm sm:text-base min-h-[44px]"
+                          >
+                            <span>⚙️</span>
+                            <span className="hidden sm:inline">API Config</span>
+                            <span className="sm:hidden">Config</span>
+                          </button>
+                        </>
+                      )}
 
                       {/* Admin Edit Controls */}
                       {isAdminMode && (
