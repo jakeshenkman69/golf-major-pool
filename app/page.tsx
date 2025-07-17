@@ -1025,8 +1025,8 @@ const tournamentLogos: Record<string, string> = {
           liveToPar = liveTotal - (currentPar * 4);
         } else {
           // For players who made the cut, calculate live score
-          const completedRounds = score.rounds?.filter(r => r !== null) || [];
-          liveTotal = completedRounds.reduce((sum: number, round) => sum + round, 0);
+          const completedRounds = (score.rounds?.filter(r => r !== null) || []) as number[];
+          liveTotal = completedRounds.reduce((sum: number, round: number) => sum + round, 0);
           
           // Add current round progress if available
           if (score.currentRound && score.thru) {
