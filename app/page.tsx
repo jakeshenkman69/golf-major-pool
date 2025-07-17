@@ -779,13 +779,51 @@ const tournamentLogos: Record<string, string> = {
   const findMatchingGolfer = (apiPlayerName: string): string | null => {
     if (!apiPlayerName) return null;
     
+    // Common golf nickname mappings
+    const nicknameMap: Record<string, string> = {
+      'patrick': 'pat',
+      'pat': 'patrick',
+      'robert': 'bob',
+      'bob': 'robert',
+      'william': 'bill',
+      'bill': 'william',
+      'james': 'jim',
+      'jim': 'james',
+      'thomas': 'tom',
+      'tom': 'thomas',
+      'richard': 'rick',
+      'rick': 'richard',
+      'richard': 'dick',
+      'dick': 'richard',
+      'matthew': 'matt',
+      'matt': 'matthew',
+      'michael': 'mike',
+      'mike': 'michael',
+      'christopher': 'chris',
+      'chris': 'christopher',
+      'anthony': 'tony',
+      'tony': 'anthony',
+      'daniel': 'dan',
+      'dan': 'daniel',
+      'andrew': 'andy',
+      'andy': 'andrew',
+      'jonathan': 'jon',
+      'jon': 'jonathan',
+      'samuel': 'sam',
+      'sam': 'samuel',
+      'joseph': 'joe',
+      'joe': 'joseph'
+    };
+    
     // Normalize function to handle special characters and formatting
     const normalizeString = (str: string): string => {
       return str
         .toLowerCase()
         .trim()
         // Remove common suffixes
-        .replace(/\b(jr\.?|sr\.?|iii?|iv|r\.?)\b/g, '')
+        .replace(/\b(jr\.?|sr\.?|iii?|iv|v|r\.?)\b/g, '')
+        // Remove middle initials (single letters with or without periods)
+        .replace(/\b[a-z]\.?\b/g, ' ')
         // Normalize special characters
         .replace(/[àáâãäå]/g, 'a')
         .replace(/[èéêë]/g, 'e')
@@ -802,91 +840,178 @@ const tournamentLogos: Record<string, string> = {
     };
 
     const normalizedApiName = normalizeString(apiPlayerName);
-    console.log(`Trying to match: "${apiPlayerName}" → normalized: "${normalizedApiName}"`);
+    console.log(`🔍 Trying to match: "${apiPlayerName}" → normalized: "${normalizedApiName}"`);
     
     // Try exact match first
     const exactMatch = golfers.find(g => 
       normalizeString(g.name) === normalizedApiName
     );
     if (exactMatch) {
-      console.log(`✓ Exact match: "${apiPlayerName}" → "${exactMatch.name}"`);
+      console.log(`✅ Exact match: "${apiPlayerName}" → "${exactMatch.name}"`);
       return exactMatch.name;
     }
     
-    // Try last name match (most reliable for golf)
+    // Extract name parts for more sophisticated matching
     const apiParts = normalizedApiName.split(' ').filter(p => p.length > 1);
+    const apiFirstName = apiParts[0];
     const apiLastName = apiParts[apiParts.length - 1];
     
+    // Try last name + first name/nickname match
+    if (apiLastName && apiLastName.length > 2 && apiFirstName && apiFirstName.length > 1) {
+      const nameVariationsMatch = golfers.find(g => {
+        const golferParts = normalizeString(g.name).split(' ').filter(p => p.length > 1);
+        if (golferParts.length >= 2) {
+          const golferFirstName = golferParts[0];
+          const golferLastName = golferParts[golferParts.length - 1];
+          
+          // Check if last names match and first names are related
+          if (golferLastName === apiLastName) {
+            // Direct first name match
+            if (golferFirstName === apiFirstName) return true;
+            
+            // Nickname variations
+            if (nicknameMap[golferFirstName] === apiFirstName || 
+                nicknameMap[apiFirstName] === golferFirstName) return true;
+            
+            // First name contains the other (e.g., "Jon" vs "Jonathan")
+            if (golferFirstName.includes(apiFirstName) || apiFirstName.includes(golferFirstName)) {
+              return Math.abs(golferFirstName.length - apiFirstName.length) <= 3;
+            }
+          }
+        }
+        return false;
+      });
+      
+      if (nameVariationsMatch) {
+        console.log(`✅ Name variation match: "${apiPlayerName}" → "${nameVariationsMatch.name}"`);
+        return nameVariationsMatch.name;
+      }
+    }
+    
+    // Try last name only match (most reliable for golf)
     if (apiLastName && apiLastName.length > 2) {
-      const lastNameMatch = golfers.find(g => {
+      const lastNameMatches = golfers.filter(g => {
         const golferParts = normalizeString(g.name).split(' ').filter(p => p.length > 1);
         const golferLastName = golferParts[golferParts.length - 1];
         return golferLastName === apiLastName;
       });
       
-      if (lastNameMatch) {
-        console.log(`✓ Last name match: "${apiPlayerName}" → "${lastNameMatch.name}"`);
-        return lastNameMatch.name;
-      }
-    }
-    
-    // Try first + last name combination
-    if (apiParts.length >= 2) {
-      const apiFirstName = apiParts[0];
-      const firstLastMatch = golfers.find(g => {
-        const golferParts = normalizeString(g.name).split(' ').filter(p => p.length > 1);
-        if (golferParts.length >= 2) {
-          const golferFirstName = golferParts[0];
-          const golferLastName = golferParts[golferParts.length - 1];
-          return golferFirstName === apiFirstName && golferLastName === apiLastName;
+      if (lastNameMatches.length === 1) {
+        console.log(`✅ Unique last name match: "${apiPlayerName}" → "${lastNameMatches[0].name}"`);
+        return lastNameMatches[0].name;
+      } else if (lastNameMatches.length > 1) {
+        console.log(`⚠️ Multiple last name matches for "${apiPlayerName}":`, lastNameMatches.map(g => g.name));
+        // If multiple matches, try to use first name to disambiguate
+        const disambiguated = lastNameMatches.find(g => {
+          const golferFirstName = normalizeString(g.name).split(' ')[0];
+          return golferFirstName.startsWith(apiFirstName.substring(0, 2)) || 
+                 apiFirstName.startsWith(golferFirstName.substring(0, 2));
+        });
+        if (disambiguated) {
+          console.log(`✅ Disambiguated match: "${apiPlayerName}" → "${disambiguated.name}"`);
+          return disambiguated.name;
         }
-        return false;
-      });
-      
-      if (firstLastMatch) {
-        console.log(`✓ First+Last match: "${apiPlayerName}" → "${firstLastMatch.name}"`);
-        return firstLastMatch.name;
       }
     }
     
-    // Try partial name match (contains)
-    const partialMatch = golfers.find(g => {
+    // Try fuzzy matching for slight spelling differences
+    const fuzzyMatch = golfers.find(g => {
       const golferNormalized = normalizeString(g.name);
-      // Check if significant parts of the names overlap
-      const commonWords = apiParts.filter(part => 
-        part.length > 2 && golferNormalized.includes(part)
-      );
-      return commonWords.length >= Math.min(2, apiParts.length);
+      const golferParts = golferNormalized.split(' ').filter(p => p.length > 1);
+      
+      // Calculate similarity score
+      let matchScore = 0;
+      let totalParts = Math.max(apiParts.length, golferParts.length);
+      
+      for (let i = 0; i < Math.min(apiParts.length, golferParts.length); i++) {
+        const apiPart = apiParts[i];
+        const golferPart = golferParts[i];
+        
+        if (apiPart === golferPart) {
+          matchScore += 1;
+        } else if (apiPart.length >= 3 && golferPart.length >= 3) {
+          // Check if parts are very similar (allowing for 1 character difference)
+          const maxLen = Math.max(apiPart.length, golferPart.length);
+          const minLen = Math.min(apiPart.length, golferPart.length);
+          if (maxLen - minLen <= 1) {
+            let differences = 0;
+            for (let j = 0; j < minLen; j++) {
+              if (apiPart[j] !== golferPart[j]) differences++;
+            }
+            if (differences <= 1) matchScore += 0.8;
+          }
+        }
+      }
+      
+      // Require at least 70% similarity
+      return (matchScore / totalParts) >= 0.7;
     });
     
-    if (partialMatch) {
-      console.log(`✓ Partial match: "${apiPlayerName}" → "${partialMatch.name}"`);
-      return partialMatch.name;
+    if (fuzzyMatch) {
+      console.log(`✅ Fuzzy match: "${apiPlayerName}" → "${fuzzyMatch.name}"`);
+      return fuzzyMatch.name;
     }
     
-    // Try reversed name order (for Asian names, etc.)
+    // Try reversed name order (for names like "Kim Si Woo" vs "Si Woo Kim")
     if (apiParts.length >= 2) {
-      const reversedName = `${apiLastName} ${apiParts[0]}`;
-      const reversedMatch = golfers.find(g => 
-        normalizeString(g.name).includes(reversedName) || reversedName.includes(normalizeString(g.name))
-      );
+      const reversedName = `${apiLastName} ${apiFirstName}`;
+      const reversedMatch = golfers.find(g => {
+        const normalized = normalizeString(g.name);
+        return normalized === reversedName || 
+               normalized.includes(reversedName) || 
+               reversedName.includes(normalized);
+      });
       
       if (reversedMatch) {
-        console.log(`✓ Reversed name match: "${apiPlayerName}" → "${reversedMatch.name}"`);
+        console.log(`✅ Reversed name match: "${apiPlayerName}" → "${reversedMatch.name}"`);
         return reversedMatch.name;
       }
     }
     
-    console.log(`✗ No match found for: "${apiPlayerName}" (normalized: "${normalizedApiName}")`);
-    
-    // Log available similar names for debugging
-    const similarNames = golfers.filter(g => {
+    // Enhanced partial matching
+    const enhancedPartialMatch = golfers.find(g => {
       const golferNormalized = normalizeString(g.name);
-      return apiParts.some(part => part.length > 2 && golferNormalized.includes(part));
-    }).slice(0, 3);
+      const golferParts = golferNormalized.split(' ').filter(p => p.length > 1);
+      
+      // Count significant word matches (3+ characters)
+      const significantApiParts = apiParts.filter(p => p.length >= 3);
+      const matchingParts = significantApiParts.filter(apiPart => 
+        golferParts.some(golferPart => 
+          golferPart.includes(apiPart) || apiPart.includes(golferPart)
+        )
+      );
+      
+      // Require at least half of significant parts to match
+      return matchingParts.length >= Math.ceil(significantApiParts.length / 2) && 
+             matchingParts.length >= 1;
+    });
     
-    if (similarNames.length > 0) {
-      console.log(`   Similar names in tournament:`, similarNames.map(g => g.name));
+    if (enhancedPartialMatch) {
+      console.log(`✅ Enhanced partial match: "${apiPlayerName}" → "${enhancedPartialMatch.name}"`);
+      return enhancedPartialMatch.name;
+    }
+    
+    console.log(`❌ No match found for: "${apiPlayerName}" (normalized: "${normalizedApiName}")`);
+    
+    // Enhanced debugging - show potential matches
+    const potentialMatches = golfers.filter(g => {
+      const golferNormalized = normalizeString(g.name);
+      const golferParts = golferNormalized.split(' ').filter(p => p.length > 1);
+      return apiParts.some(apiPart => 
+        golferParts.some(golferPart => 
+          (apiPart.length >= 3 && golferPart.includes(apiPart)) ||
+          (golferPart.length >= 3 && apiPart.includes(golferPart))
+        )
+      );
+    }).slice(0, 5);
+    
+    if (potentialMatches.length > 0) {
+      console.log(`🔍 Potential matches for "${apiPlayerName}":`, potentialMatches.map(g => g.name));
+    }
+    
+    // Show all golfers if no potential matches (for debugging)
+    if (potentialMatches.length === 0) {
+      console.log(`📋 All tournament golfers:`, golfers.map(g => g.name).slice(0, 10));
     }
     
     return null;
