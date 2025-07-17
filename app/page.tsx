@@ -1695,7 +1695,29 @@ const tournamentLogos: Record<string, string> = {
                     </>
                   ) : (
                     /* Player View - Leaderboard Style */
-                    <div className="bg-white rounded-lg shadow-sm border">
+                    <>
+                      {/* Score Update Timestamp for Players */}
+                      <div className="bg-blue-50 p-3 sm:p-4 rounded-lg mb-4">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium text-blue-800">
+                            Scores last checked:
+                          </span>
+                          <span className="text-sm text-blue-600">
+                            {lastFetchTime 
+                              ? new Date(lastFetchTime).toLocaleString('en-US', {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  hour: 'numeric',
+                                  minute: '2-digit',
+                                  hour12: true
+                                })
+                              : 'Never updated'
+                            }
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="bg-white rounded-lg shadow-sm border">
                       {leaderboardResults.length > 0 ? (
                         <div className="divide-y divide-gray-200">
                           {leaderboardResults.map((result, index) => {
