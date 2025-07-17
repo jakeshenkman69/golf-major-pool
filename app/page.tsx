@@ -811,6 +811,25 @@ const tournamentLogos: Record<string, string> = {
     const normalizedApiName = normalizeString(apiPlayerName);
     console.log(`Trying to match: "${apiPlayerName}" → normalized: "${normalizedApiName}"`);
     
+    // Special cases for problematic names
+    const specialMatches: Record<string, string> = {
+      'jordan smith': 'Jordan L. Smith',
+      'jordan l smith': 'Jordan L. Smith', 
+      'jordan l. smith': 'Jordan L. Smith',
+      'hao tong li': 'Hao-Tong Li',
+      'haotong li': 'Hao-Tong Li',
+      'hao-tong li': 'Hao-Tong Li'
+    };
+    
+    if (specialMatches[normalizedApiName]) {
+      const matchedName = specialMatches[normalizedApiName];
+      const golferExists = golfers.find(g => g.name === matchedName);
+      if (golferExists) {
+        console.log(`✓ Special case match: "${apiPlayerName}" → "${matchedName}"`);
+        return matchedName;
+      }
+    }
+    
     // Try exact match first
     const exactMatch = golfers.find(g => 
       normalizeString(g.name) === normalizedApiName
@@ -820,27 +839,13 @@ const tournamentLogos: Record<string, string> = {
       return exactMatch.name;
     }
     
-    // Try last name match (most reliable for golf)
     const apiParts = normalizedApiName.split(' ').filter(p => p.length > 1);
     const apiLastName = apiParts[apiParts.length - 1];
     
-    if (apiLastName && apiLastName.length > 2) {
-      const lastNameMatch = golfers.find(g => {
-        const golferParts = normalizeString(g.name).split(' ').filter(p => p.length > 1);
-        const golferLastName = golferParts[golferParts.length - 1];
-        return golferLastName === apiLastName;
-      });
-      
-      if (lastNameMatch) {
-        console.log(`✓ Last name match: "${apiPlayerName}" → "${lastNameMatch.name}"`);
-        return lastNameMatch.name;
-      }
-    }
-    
-    // Try first + last name combination
+    // Try first + last name combination (more specific than just last name)
     if (apiParts.length >= 2) {
       const apiFirstName = apiParts[0];
-      const firstLastMatch = golfers.find(g => {
+      const firstLastMatches = golfers.filter(g => {
         const golferParts = normalizeString(g.name).split(' ').filter(p => p.length > 1);
         if (golferParts.length >= 2) {
           const golferFirstName = golferParts[0];
@@ -850,13 +855,35 @@ const tournamentLogos: Record<string, string> = {
         return false;
       });
       
-      if (firstLastMatch) {
-        console.log(`✓ First+Last match: "${apiPlayerName}" → "${firstLastMatch.name}"`);
-        return firstLastMatch.name;
+      if (firstLastMatches.length === 1) {
+        console.log(`✓ First+Last match: "${apiPlayerName}" → "${firstLastMatches[0].name}"`);
+        return firstLastMatches[0].name;
+      } else if (firstLastMatches.length > 1) {
+        console.log(`⚠️ Multiple first+last matches for "${apiPlayerName}":`, firstLastMatches.map(g => g.name));
+        // Don't return any match if multiple found to avoid confusion
+        return null;
       }
     }
     
-    // Try partial name match (contains)
+    // Try last name match ONLY if there's exactly one match (to avoid Cameron/Jordan Smith confusion)
+    if (apiLastName && apiLastName.length > 2) {
+      const lastNameMatches = golfers.filter(g => {
+        const golferParts = normalizeString(g.name).split(' ').filter(p => p.length > 1);
+        const golferLastName = golferParts[golferParts.length - 1];
+        return golferLastName === apiLastName;
+      });
+      
+      if (lastNameMatches.length === 1) {
+        console.log(`✓ Unique last name match: "${apiPlayerName}" → "${lastNameMatches[0].name}"`);
+        return lastNameMatches[0].name;
+      } else if (lastNameMatches.length > 1) {
+        console.log(`⚠️ Multiple last name matches for "${apiPlayerName}":`, lastNameMatches.map(g => g.name));
+        // Don't return any match if multiple found to avoid confusion
+        return null;
+      }
+    }
+    
+    // Try partial name match (contains) - but be careful
     const partialMatch = golfers.find(g => {
       const golferNormalized = normalizeString(g.name);
       // Check if significant parts of the names overlap
