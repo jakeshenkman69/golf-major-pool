@@ -634,8 +634,9 @@ const tournamentLogos: Record<string, string> = {
           golfer_name: golferName,
           rounds,
           made_cut: madeCut,
-          thru,
-          current_round: currentRoundScore,
+          // Only include thru and current_round if they have values
+          ...(thru && { thru }),
+          ...(currentRoundScore && { current_round: currentRoundScore }),
           updated_at: new Date().toISOString()
         });
         
@@ -653,14 +654,17 @@ const tournamentLogos: Record<string, string> = {
 
     if (scoreUpdates.length > 0) {
       console.log('Saving', scoreUpdates.length, 'score updates to database');
+      console.log('Sample score update:', scoreUpdates[0]);
       
       const { error } = await supabase
         .from('scores')
         .upsert(scoreUpdates, { onConflict: 'tournament_key,golfer_name' });
 
       if (error) {
-        console.error('Database error:', error);
-        throw error;
+        console.error('Database error details:', error);
+        console.error('Error message:', error.message);
+        console.error('Error details:', error.details);
+        throw new Error(`Database error: ${error.message}`);
       }
 
       // Reload tournament data to show updated scores
