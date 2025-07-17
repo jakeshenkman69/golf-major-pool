@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react';
-import { Upload, Users, Trophy, Plus, Trash2, Edit2, Save } from 'lucide-react';
+import { Upload, Users, Trophy, Plus, Trash2, Edit2, Save, Star, Info } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 // Type definitions
@@ -564,7 +564,7 @@ const tournamentLogos: Record<string, string> = {
           throw new Error(`Invalid parameters: tournId="${tournId}", year="${year}". Check if this tournament exists for ${year}.`);
         }
         if (response.status === 404) {
-          throw new Error(`Tournament not found: tournId="${tournId}" for year "${year}". Try a different tournament ID.`);
+          throw new Error(`Tournament not found: tournId="${tournId}" for year="${year}". Try a different tournament ID.`);
         }
         
         throw new Error(`API Error: ${response.status} ${response.statusText} - ${errorText}`);
@@ -1528,172 +1528,279 @@ const tournamentLogos: Record<string, string> = {
                 </div>
               )}
 
-              {/* Players Tab */}
+              {/* Players Tab - Different view for Admin vs Player */}
               {activeTab === 'players' && (
                 <div className="space-y-4 sm:space-y-6">
-                  {/* Add New Player - Admin Only */}
-                  {isAdminMode && (
-                    <div className="bg-green-50 p-3 sm:p-4 rounded-lg">
-                      <h3 className="font-semibold mb-3 sm:mb-4 text-green-800 text-sm sm:text-base">Add New Player</h3>
-                      <div className="mb-3 sm:mb-4">
-                        <input
-                          type="text"
-                          placeholder="Player Name"
-                          value={newPlayer.name}
-                          onChange={(e) => setNewPlayer({ ...newPlayer, name: e.target.value })}
-                          className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-green-500 text-base min-h-[44px] text-gray-900 bg-white placeholder-gray-500"
-                        />
-                      </div>
-                      
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                        {Object.entries(tiers).map(([tierName, tierGolfers], index) => (
-                          <TierSelector
-                            key={tierName}
-                            tierName={tierName}
-                            tierNumber={index + 1}
-                            golfers={tierGolfers}
-                            selectedGolfer={newPlayer.picks[tierName]}
-                            onSelect={(tier, golfer) => 
-                              setNewPlayer({ 
-                                ...newPlayer, 
-                                picks: { ...newPlayer.picks, [tier]: golfer }
-                              })
-                            }
+                  {isAdminMode ? (
+                    <>
+                      {/* Admin View - Add New Player */}
+                      <div className="bg-green-50 p-3 sm:p-4 rounded-lg">
+                        <h3 className="font-semibold mb-3 sm:mb-4 text-green-800 text-sm sm:text-base">Add New Player</h3>
+                        <div className="mb-3 sm:mb-4">
+                          <input
+                            type="text"
+                            placeholder="Player Name"
+                            value={newPlayer.name}
+                            onChange={(e) => setNewPlayer({ ...newPlayer, name: e.target.value })}
+                            className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-green-500 text-base min-h-[44px] text-gray-900 bg-white placeholder-gray-500"
                           />
-                        ))}
+                        </div>
+                        
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                          {Object.entries(tiers).map(([tierName, tierGolfers], index) => (
+                            <TierSelector
+                              key={tierName}
+                              tierName={tierName}
+                              tierNumber={index + 1}
+                              golfers={tierGolfers}
+                              selectedGolfer={newPlayer.picks[tierName]}
+                              onSelect={(tier, golfer) => 
+                                setNewPlayer({ 
+                                  ...newPlayer, 
+                                  picks: { ...newPlayer.picks, [tier]: golfer }
+                                })
+                              }
+                            />
+                          ))}
+                        </div>
+                        
+                        <button
+                          onClick={addPlayer}
+                          disabled={!newPlayer.name || Object.keys(newPlayer.picks).length !== 6}
+                          className="mt-3 sm:mt-4 flex items-center gap-2 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 text-base min-h-[44px]"
+                        >
+                          <Plus size={20} />
+                          Add Player
+                        </button>
                       </div>
-                      
-                      <button
-                        onClick={addPlayer}
-                        disabled={!newPlayer.name || Object.keys(newPlayer.picks).length !== 6}
-                        className="mt-3 sm:mt-4 flex items-center gap-2 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 text-base min-h-[44px]"
-                      >
-                        <Plus size={20} />
-                        Add Player
-                      </button>
-                    </div>
-                  )}
 
-                  {/* Current Players */}
-                  <div className="space-y-3">
-                    <h3 className="font-semibold text-gray-800">Current Players ({players.length})</h3>
-                    {players.map(player => {
-                      // Calculate player's current performance
-                      const playerScores = Object.values(player.picks).map(golferName => {
-                        const score = currentScores[golferName];
-                        if (!score) return { name: golferName, toPar: null, status: 'No score' };
-                        
-                        if (!score.madeCut) {
-                          const rounds = [...score.rounds];
-                          const penaltyScore = currentPar + 8;
-                          rounds[2] = penaltyScore;
-                          rounds[3] = penaltyScore;
-                          const cutScore = rounds.reduce((sum: number, round) => sum + (round || 0), 0);
-                          return {
-                            name: golferName,
-                            toPar: cutScore - (currentPar * 4),
-                            status: 'MC',
-                            rounds: rounds
-                          };
-                        }
-                        
-                        return {
-                          name: golferName,
-                          toPar: score.toPar,
-                          status: score.completedRounds < 4 ? `${score.completedRounds || 0}/4` : 'Done',
-                          rounds: score.rounds
-                        };
-                      });
+                      {/* Admin View - Current Players */}
+                      <div className="space-y-3">
+                        <h3 className="font-semibold text-gray-800">Current Players ({players.length})</h3>
+                        {players.map(player => {
+                          // Calculate player's current performance
+                          const playerScores = Object.values(player.picks).map(golferName => {
+                            const score = currentScores[golferName];
+                            if (!score) return { name: golferName, toPar: null, status: 'No score' };
+                            
+                            if (!score.madeCut) {
+                              const rounds = [...score.rounds];
+                              const penaltyScore = currentPar + 8;
+                              rounds[2] = penaltyScore;
+                              rounds[3] = penaltyScore;
+                              const cutScore = rounds.reduce((sum: number, round) => sum + (round || 0), 0);
+                              return {
+                                name: golferName,
+                                toPar: cutScore - (currentPar * 4),
+                                status: 'MC',
+                                rounds: rounds
+                              };
+                            }
+                            
+                            return {
+                              name: golferName,
+                              toPar: score.toPar,
+                              status: score.completedRounds < 4 ? `${score.completedRounds || 0}/4` : 'Done',
+                              rounds: score.rounds
+                            };
+                          });
 
-                      const validScores = playerScores.filter(g => g.toPar !== null);
-                      const bestFour = validScores.sort((a, b) => a.toPar! - b.toPar!).slice(0, 4);
-                      const totalScore = bestFour.reduce((sum: number, golfer) => sum + golfer.toPar!, 0);
+                          const validScores = playerScores.filter(g => g.toPar !== null);
+                          const bestFour = validScores.sort((a, b) => a.toPar! - b.toPar!).slice(0, 4);
+                          const totalScore = bestFour.reduce((sum: number, golfer) => sum + golfer.toPar!, 0);
 
-                      return (
-                        <div key={player.id} className="bg-white border rounded-lg p-4 shadow-sm">
-                          {/* Player Header */}
-                          <div className="flex justify-between items-center mb-3">
-                            <div className="flex flex-col sm:flex-row sm:items-center sm:gap-3">
-                              <h4 className="font-semibold text-lg">{player.name}</h4>
-                              {validScores.length > 0 && (
-                                <span className={`inline-block px-3 py-1 rounded-full text-sm font-bold mt-1 sm:mt-0 ${
-                                  totalScore < 0 ? 'bg-red-100 text-red-700' : 
-                                  totalScore > 0 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
-                                }`}>
-                                  {totalScore > 0 ? '+' : ''}{totalScore}
-                                  {bestFour.length < 4 && <span className="text-xs ml-1">({bestFour.length}/4)</span>}
-                                </span>
-                              )}
-                            </div>
-                            {isAdminMode && (
-                              <button
-                                onClick={() => deletePlayer(player.id)}
-                                className="text-red-500 hover:text-red-700 p-2 hover:bg-red-50 rounded"
-                              >
-                                <Trash2 size={16} />
-                              </button>
-                            )}
-                          </div>
-                          
-                          {/* Mobile: Stack view, Desktop: Grid view */}
-                          <div className="space-y-2 sm:space-y-0 sm:grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 sm:gap-2">
-                            {Object.entries(player.picks).map(([tier, golfer], index) => {
-                              const golferScore = playerScores.find(g => g.name === golfer);
-                              const isInBestFour = bestFour.some(g => g.name === golfer);
+                          return (
+                            <div key={player.id} className="bg-white border rounded-lg p-4 shadow-sm">
+                              {/* Player Header */}
+                              <div className="flex justify-between items-center mb-3">
+                                <div className="flex flex-col sm:flex-row sm:items-center sm:gap-3">
+                                  <h4 className="font-semibold text-lg">{player.name}</h4>
+                                  {validScores.length > 0 && (
+                                    <span className={`inline-block px-3 py-1 rounded-full text-sm font-bold mt-1 sm:mt-0 ${
+                                      totalScore < 0 ? 'bg-red-100 text-red-700' : 
+                                      totalScore > 0 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
+                                    }`}>
+                                      {totalScore > 0 ? '+' : ''}{totalScore}
+                                      {bestFour.length < 4 && <span className="text-xs ml-1">({bestFour.length}/4)</span>}
+                                    </span>
+                                  )}
+                                </div>
+                                <button
+                                  onClick={() => deletePlayer(player.id)}
+                                  className="text-red-500 hover:text-red-700 p-2 hover:bg-red-50 rounded"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              </div>
                               
-                              return (
-                                <div key={tier} className={`p-3 rounded-lg border ${
-                                  isInBestFour 
-                                    ? 'bg-blue-50 border-blue-200 ring-1 ring-blue-300' 
-                                    : 'bg-gray-50 border-gray-200'
-                                }`}>
-                                  {/* Mobile: Horizontal layout */}
-                                  <div className="flex justify-between items-center sm:flex-col sm:items-start">
-                                    <div className="flex-1 sm:w-full">
-                                      <div className="flex items-center gap-2 mb-1 sm:mb-2">
-                                        <span className="text-xs font-medium text-gray-600 bg-white px-2 py-1 rounded">
-                                          T{index + 1}
-                                        </span>
-                                        {isInBestFour && (
-                                          <span className="text-xs bg-blue-600 text-white px-2 py-1 rounded sm:hidden">
-                                            ★
-                                          </span>
-                                        )}
-                                      </div>
-                                      <div className="font-medium text-sm text-gray-800 mb-1 leading-tight">
-                                        {golfer}
+                              {/* Mobile: Stack view, Desktop: Grid view */}
+                              <div className="space-y-2 sm:space-y-0 sm:grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 sm:gap-2">
+                                {Object.entries(player.picks).map(([tier, golfer], index) => {
+                                  const golferScore = playerScores.find(g => g.name === golfer);
+                                  const isInBestFour = bestFour.some(g => g.name === golfer);
+                                  
+                                  return (
+                                    <div key={tier} className={`p-3 rounded-lg border ${
+                                      isInBestFour 
+                                        ? 'bg-blue-50 border-blue-200 ring-1 ring-blue-300' 
+                                        : 'bg-gray-50 border-gray-200'
+                                    }`}>
+                                      {/* Mobile: Horizontal layout */}
+                                      <div className="flex justify-between items-center sm:flex-col sm:items-start">
+                                        <div className="flex-1 sm:w-full">
+                                          <div className="flex items-center gap-2 mb-1 sm:mb-2">
+                                            <span className="text-xs font-medium text-gray-600 bg-white px-2 py-1 rounded">
+                                              T{index + 1}
+                                            </span>
+                                            {isInBestFour && (
+                                              <span className="text-xs bg-blue-600 text-white px-2 py-1 rounded sm:hidden">
+                                                ★
+                                              </span>
+                                            )}
+                                          </div>
+                                          <div className="font-medium text-sm text-gray-800 mb-1 leading-tight">
+                                            {golfer}
+                                          </div>
+                                        </div>
+                                        
+                                        {/* Score section */}
+                                        <div className="flex flex-col items-end sm:items-start sm:w-full">
+                                          {golferScore && (
+                                            <>
+                                              {golferScore.toPar !== null ? (
+                                                <>
+                                                  <span className={`font-bold text-base sm:text-sm ${
+                                                    golferScore.toPar < 0 ? 'text-red-600' : 
+                                                    golferScore.toPar > 0 ? 'text-green-600' : 'text-gray-600'
+                                                  }`}>
+                                                    {golferScore.toPar > 0 ? '+' : ''}{golferScore.toPar}
+                                                  </span>
+                                                  <span className="text-xs text-gray-500">{golferScore.status}</span>
+                                                </>
+                                              ) : (
+                                                <span className="text-gray-500 text-sm">-</span>
+                                              )}
+                                            </>
+                                          )}
+                                        </div>
                                       </div>
                                     </div>
-                                    
-                                    {/* Score section */}
-                                    <div className="flex flex-col items-end sm:items-start sm:w-full">
-                                      {golferScore && (
-                                        <>
-                                          {golferScore.toPar !== null ? (
-                                            <>
-                                              <span className={`font-bold text-base sm:text-sm ${
-                                                golferScore.toPar < 0 ? 'text-red-600' : 
-                                                golferScore.toPar > 0 ? 'text-green-600' : 'text-gray-600'
-                                              }`}>
-                                                {golferScore.toPar > 0 ? '+' : ''}{golferScore.toPar}
-                                              </span>
-                                              <span className="text-xs text-gray-500">{golferScore.status}</span>
-                                            </>
-                                          ) : (
-                                            <span className="text-gray-500 text-sm">-</span>
-                                          )}
-                                        </>
-                                      )}
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  ) : (
+                    /* Player View - Leaderboard Style */
+                    <div className="bg-white rounded-lg shadow-sm border">
+                      {leaderboardResults.length > 0 ? (
+                        <div className="divide-y divide-gray-200">
+                          {leaderboardResults.map((result, index) => {
+                            const isCurrentPlayerFirst = index === 0;
+                            
+                            return (
+                              <div
+                                key={result.id}
+                                className={`p-4 ${isCurrentPlayerFirst ? 'bg-yellow-50 border-l-4 border-yellow-400' : ''}`}
+                              >
+                                {/* Player Header */}
+                                <div className="flex items-center justify-between mb-3">
+                                  <div className="flex items-center gap-3">
+                                    <div className="flex items-center gap-2">
+                                      <Star
+                                        className={`w-5 h-5 ${isCurrentPlayerFirst ? 'text-yellow-500 fill-current' : 'text-gray-300'}`}
+                                      />
+                                      <span className="text-lg font-bold text-gray-900">
+                                        {index + 1}
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-lg font-semibold text-gray-900">
+                                        {result.name}
+                                      </span>
+                                      <Info className="w-4 h-4 text-gray-400" />
                                     </div>
                                   </div>
+                                  <div className={`text-xl font-bold ${
+                                    result.totalScore < 0 ? 'text-red-600' : 
+                                    result.totalScore > 0 ? 'text-green-600' : 'text-gray-600'
+                                  }`}>
+                                    {result.totalScore > 0 ? '+' : ''}{result.totalScore}
+                                  </div>
                                 </div>
-                              );
-                            })}
-                          </div>
+
+                                {/* Golfers List */}
+                                <div className="space-y-2">
+                                  {result.golferScores.map((golfer: any) => {
+                                    const isInBestFour = result.bestFour.some((bg: any) => bg.name === golfer.name);
+                                    const isMissedCut = !golfer.madeCut;
+                                    
+                                    return (
+                                      <div
+                                        key={golfer.name}
+                                        className={`flex items-center justify-between py-2 px-3 rounded ${
+                                          isInBestFour ? 'bg-blue-50 border border-blue-200' : 'bg-gray-50'
+                                        }`}
+                                      >
+                                        <div className="flex items-center gap-3">
+                                          <span className={`text-sm font-medium ${
+                                            isMissedCut ? 'line-through text-gray-500' : 'text-gray-900'
+                                          }`}>
+                                            {golfer.name}
+                                          </span>
+                                          {isMissedCut && (
+                                            <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded">
+                                              CUT
+                                            </span>
+                                          )}
+                                        </div>
+
+                                        <div className="flex items-center gap-4">
+                                          {/* Total Score */}
+                                          <span className={`font-bold ${
+                                            golfer.toPar < 0 ? 'text-red-600' : 
+                                            golfer.toPar > 0 ? 'text-green-600' : 'text-gray-600'
+                                          }`}>
+                                            {golfer.toPar > 0 ? '+' : ''}{golfer.toPar}
+                                          </span>
+
+                                          {/* Round Scores */}
+                                          <div className="flex items-center gap-1 text-sm">
+                                            <span className="text-gray-500">
+                                              {golfer.completedRounds >= 4 ? 'F' : `R${golfer.completedRounds || 0}`}
+                                            </span>
+                                            {golfer.rounds && golfer.rounds.map((round: number | null, roundIndex: number) => (
+                                              <span
+                                                key={roundIndex}
+                                                className={`ml-1 ${
+                                                  round === null ? 'text-gray-400' : 
+                                                  isMissedCut && roundIndex >= 2 ? 'text-red-600 font-medium' : 'text-gray-700'
+                                                }`}
+                                              >
+                                                {round || '-'}
+                                              </span>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
-                      );
-                    })}
-                  </div>
+                      ) : (
+                        <div className="text-center py-8 text-gray-500">
+                          <p>No players have been added yet</p>
+                          <p className="text-sm mt-2">Ask an admin to add players to see the leaderboard</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 
