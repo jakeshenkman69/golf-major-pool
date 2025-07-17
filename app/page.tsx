@@ -1011,29 +1011,54 @@ const tournamentLogos: Record<string, string> = {
         const score = currentScores[golferName];
         if (!score) return null;
         
-        let toPar = score.toPar;
+        // Calculate live toPar including current round progress
+        let liveToPar = 0;
+        let liveTotal = 0;
         
-        // Only special handling for missed cut - use penalty scoring
         if (!score.madeCut) {
+          // For missed cut players, use the penalty system
           const rounds = [...score.rounds];
           const penaltyScore = currentPar + 8;
-          rounds[2] = penaltyScore; // Round 3 penalty
-          rounds[3] = penaltyScore; // Round 4 penalty
-          const totalScore = rounds.reduce((sum: number, round) => sum + (round || 0), 0);
-          toPar = totalScore - (currentPar * 4); // Calculate against 4 rounds
+          rounds[2] = penaltyScore;
+          rounds[3] = penaltyScore;
+          liveTotal = rounds.reduce((sum: number, round) => sum + (round || 0), 0);
+          liveToPar = liveTotal - (currentPar * 4);
+        } else {
+          // For players who made the cut, calculate live score
+          const completedRounds = (score.rounds?.filter(r => r !== null) || []) as number[];
+          liveTotal = completedRounds.reduce((sum: number, round: number) => sum + round, 0);
+          
+          // Add current round progress if available
+          if (score.currentRound && score.thru) {
+            // Calculate projected round score based on current progress
+            const holesCompleted = score.thru;
+            const currentRoundScore = score.currentRound;
+            const remainingHoles = 18 - holesCompleted;
+            const avgPerHole = currentRoundScore / holesCompleted;
+            const projectedRoundTotal = Math.round(currentRoundScore + (avgPerHole * remainingHoles));
+            liveTotal += projectedRoundTotal;
+            
+            // Calculate toPar including the projected current round
+            const totalRoundsForPar = completedRounds.length + 1;
+            liveToPar = liveTotal - (currentPar * totalRoundsForPar);
+          } else {
+            // No current round, use completed rounds only
+            const totalRoundsForPar = completedRounds.length;
+            liveToPar = totalRoundsForPar > 0 ? liveTotal - (currentPar * totalRoundsForPar) : 0;
+          }
         }
         
         return {
           name: golferName,
-          toPar: toPar,
+          toPar: liveToPar,
           madeCut: score.madeCut,
-          total: score.total,
+          total: liveTotal,
           rounds: score.rounds,
           completedRounds: score.completedRounds,
           thru: score.thru,
           currentRound: score.currentRound
         };
-      }).filter(Boolean);
+      }).filter(Boolean); // Only filter out null scores (no score data at all)
 
       const bestFour = golferScores.sort((a, b) => a!.toPar - b!.toPar).slice(0, 4);
       const totalScore = bestFour.reduce((sum: number, golfer) => sum + golfer!.toPar, 0);
