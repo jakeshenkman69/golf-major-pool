@@ -624,9 +624,12 @@ const tournamentLogos: Record<string, string> = {
         const rounds: (number | null)[] = [null, null, null, null];
         if (player.rounds && Array.isArray(player.rounds)) {
           player.rounds.forEach((round: any) => {
-            const roundIndex = extractNumber(round.roundId || 1) - 1; // Convert to 0-based index
-            if (roundIndex >= 0 && roundIndex < 4) {
-              rounds[roundIndex] = extractNumber(round.strokes);
+            const roundId = extractNumber(round.roundId || 1);
+            if (roundId !== null) {
+              const roundIndex = roundId - 1; // Convert to 0-based index
+              if (roundIndex >= 0 && roundIndex < 4) {
+                rounds[roundIndex] = extractNumber(round.strokes);
+              }
             }
           });
         }
@@ -642,7 +645,8 @@ const tournamentLogos: Record<string, string> = {
         }
 
         // Extract current round progress - handle MongoDB format
-        const thru = extractNumber(player.currentHole) && !player.roundComplete ? extractNumber(player.currentHole) : null;
+        const currentHole = extractNumber(player.currentHole);
+        const thru = currentHole && !player.roundComplete ? currentHole : null;
         const currentRoundScore = extractNumber(player.currentRoundScore);
 
         scoreUpdates.push({
@@ -650,9 +654,9 @@ const tournamentLogos: Record<string, string> = {
           golfer_name: golferName,
           rounds,
           made_cut: madeCut,
-          // Only include thru and current_round if they have valid values
-          ...(thru && { thru }),
-          ...(currentRoundScore && { current_round: currentRoundScore }),
+          // Only include thru and current_round if they have valid non-null values
+          ...(thru !== null && { thru }),
+          ...(currentRoundScore !== null && { current_round: currentRoundScore }),
           updated_at: new Date().toISOString()
         });
         
