@@ -543,7 +543,7 @@ const tournamentLogos: Record<string, string> = {
         console.log('Matched player:', fullName, '→', golferName);
         
         // Extract round scores from the rounds array
-        const rounds = [null, null, null, null];
+        const rounds: (number | null)[] = [null, null, null, null];
         if (player.rounds && Array.isArray(player.rounds)) {
           player.rounds.forEach((round: any) => {
             const roundIndex = (round.roundId || 1) - 1; // Convert to 0-based index
