@@ -564,7 +564,7 @@ const tournamentLogos: Record<string, string> = {
           throw new Error(`Invalid parameters: tournId="${tournId}", year="${year}". Check if this tournament exists for ${year}.`);
         }
         if (response.status === 404) {
-          throw new Error(`Tournament not found: tournId="${tournId}" for year "${year}". Try a different tournament ID.`);
+          throw new Error(`Tournament not found: tournId="${tournId}" for year="${year}". Try a different tournament ID.`);
         }
         
         throw new Error(`API Error: ${response.status} ${response.statusText} - ${errorText}`);
@@ -1011,33 +1011,54 @@ const tournamentLogos: Record<string, string> = {
         const score = currentScores[golferName];
         if (!score) return null;
         
-        const validRounds = score.rounds?.filter(r => r !== null) || [];
-        if (validRounds.length === 0) return null;
+        // Calculate live toPar including current round progress
+        let liveToPar = 0;
+        let liveTotal = 0;
         
         if (!score.madeCut) {
+          // For missed cut players, use the penalty system
           const rounds = [...score.rounds];
           const penaltyScore = currentPar + 8;
           rounds[2] = penaltyScore;
           rounds[3] = penaltyScore;
-          const cutScore = rounds.reduce((sum: number, round) => sum + (round || 0), 0);
-          return {
-            name: golferName,
-            toPar: cutScore - (currentPar * 4),
-            madeCut: false,
-            total: cutScore,
-            rounds: rounds
-          };
+          liveTotal = rounds.reduce((sum: number, round) => sum + (round || 0), 0);
+          liveToPar = liveTotal - (currentPar * 4);
+        } else {
+          // For players who made the cut, calculate live score
+          const completedRounds = score.rounds?.filter(r => r !== null) || [];
+          liveTotal = completedRounds.reduce((sum: number, round) => sum + round, 0);
+          
+          // Add current round progress if available
+          if (score.currentRound && score.thru) {
+            // Calculate projected round score based on current progress
+            const holesCompleted = score.thru;
+            const currentRoundScore = score.currentRound;
+            const remainingHoles = 18 - holesCompleted;
+            const avgPerHole = currentRoundScore / holesCompleted;
+            const projectedRoundTotal = Math.round(currentRoundScore + (avgPerHole * remainingHoles));
+            liveTotal += projectedRoundTotal;
+            
+            // Calculate toPar including the projected current round
+            const totalRoundsForPar = completedRounds.length + 1;
+            liveToPar = liveTotal - (currentPar * totalRoundsForPar);
+          } else {
+            // No current round, use completed rounds only
+            const totalRoundsForPar = completedRounds.length;
+            liveToPar = totalRoundsForPar > 0 ? liveTotal - (currentPar * totalRoundsForPar) : 0;
+          }
         }
         
         return {
           name: golferName,
-          toPar: score.toPar,
-          madeCut: true,
-          total: score.total,
+          toPar: liveToPar,
+          madeCut: score.madeCut,
+          total: liveTotal,
           rounds: score.rounds,
-          completedRounds: score.completedRounds
+          completedRounds: score.completedRounds,
+          thru: score.thru,
+          currentRound: score.currentRound
         };
-      }).filter(Boolean);
+      }).filter(Boolean); // Only filter out null scores (no score data at all)
 
       const bestFour = golferScores.sort((a, b) => a!.toPar - b!.toPar).slice(0, 4);
       const totalScore = bestFour.reduce((sum: number, golfer) => sum + golfer!.toPar, 0);
@@ -2084,15 +2105,22 @@ const tournamentLogos: Record<string, string> = {
                                 <td className="px-2 py-4 text-center hidden sm:table-cell">
                                   <div className="text-xs space-y-1">
                                     {player.bestFour.map((golfer: any) => (
-                                      <div key={golfer.name} className="flex justify-between">
+                                      <div key={golfer.name} className="flex justify-between items-center">
                                         <span className="truncate mr-2 max-w-20">{golfer.name}</span>
-                                        <span className={`font-medium ${
-                                          golfer.toPar < 0 ? 'text-red-600' : 
-                                          golfer.toPar > 0 ? 'text-green-600' : 'text-gray-600'
-                                        }`}>
-                                          {golfer.toPar > 0 ? '+' : ''}{golfer.toPar}
-                                          {!golfer.madeCut && ' (MC)'}
-                                        </span>
+                                        <div className="flex flex-col items-end">
+                                          <span className={`font-medium ${
+                                            golfer.toPar < 0 ? 'text-red-600' : 
+                                            golfer.toPar > 0 ? 'text-green-600' : 'text-gray-600'
+                                          }`}>
+                                            {golfer.toPar > 0 ? '+' : ''}{golfer.toPar}
+                                            {!golfer.madeCut && ' (MC)'}
+                                          </span>
+                                          {golfer.thru && golfer.currentRound && (
+                                            <span className="text-xs text-blue-600">
+                                              {golfer.thru}/18 ({golfer.currentRound})
+                                            </span>
+                                          )}
+                                        </div>
                                       </div>
                                     ))}
                                   </div>
