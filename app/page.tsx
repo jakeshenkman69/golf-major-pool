@@ -1822,6 +1822,7 @@ const tournamentLogos: Record<string, string> = {
                         </div>
                       )}
                     </div>
+                    </>
                   )}
                 </div>
               )}
