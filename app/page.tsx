@@ -591,6 +591,22 @@ const tournamentLogos: Record<string, string> = {
 
     const scoreUpdates: any[] = [];
     
+    // Helper function to extract numbers from MongoDB-like format
+    const extractNumber = (value: any): number | null => {
+      if (value === null || value === undefined) return null;
+      if (typeof value === 'number') return value;
+      if (typeof value === 'string') {
+        const parsed = parseInt(value);
+        return isNaN(parsed) ? null : parsed;
+      }
+      // Handle MongoDB format: {"$numberInt":"72"}
+      if (typeof value === 'object' && value.$numberInt) {
+        const parsed = parseInt(value.$numberInt);
+        return isNaN(parsed) ? null : parsed;
+      }
+      return null;
+    };
+    
     // SlashGolf API response structure: { leaderboardRows: [...] }
     const leaderboardRows = apiData.leaderboardRows || [];
     
@@ -608,9 +624,9 @@ const tournamentLogos: Record<string, string> = {
         const rounds: (number | null)[] = [null, null, null, null];
         if (player.rounds && Array.isArray(player.rounds)) {
           player.rounds.forEach((round: any) => {
-            const roundIndex = (round.roundId || 1) - 1; // Convert to 0-based index
+            const roundIndex = extractNumber(round.roundId || 1) - 1; // Convert to 0-based index
             if (roundIndex >= 0 && roundIndex < 4) {
-              rounds[roundIndex] = round.strokes || null;
+              rounds[roundIndex] = extractNumber(round.strokes);
             }
           });
         }
@@ -625,16 +641,16 @@ const tournamentLogos: Record<string, string> = {
           rounds[3] = rounds[3] || penaltyScore;
         }
 
-        // Extract current round progress
-        const thru = player.currentHole && !player.roundComplete ? player.currentHole : null;
-        const currentRoundScore = player.currentRoundScore ? parseInt(player.currentRoundScore) : null;
+        // Extract current round progress - handle MongoDB format
+        const thru = extractNumber(player.currentHole) && !player.roundComplete ? extractNumber(player.currentHole) : null;
+        const currentRoundScore = extractNumber(player.currentRoundScore);
 
         scoreUpdates.push({
           tournament_key: selectedTournament,
           golfer_name: golferName,
           rounds,
           made_cut: madeCut,
-          // Only include thru and current_round if they have values
+          // Only include thru and current_round if they have valid values
           ...(thru && { thru }),
           ...(currentRoundScore && { current_round: currentRoundScore }),
           updated_at: new Date().toISOString()
@@ -645,7 +661,9 @@ const tournamentLogos: Record<string, string> = {
           madeCut,
           thru,
           currentRoundScore,
-          originalStatus: player.status
+          originalStatus: player.status,
+          rawCurrentHole: player.currentHole,
+          rawCurrentRoundScore: player.currentRoundScore
         });
       } else {
         console.log('No match found for:', fullName);
@@ -655,6 +673,7 @@ const tournamentLogos: Record<string, string> = {
     if (scoreUpdates.length > 0) {
       console.log('Saving', scoreUpdates.length, 'score updates to database');
       console.log('Sample score update:', scoreUpdates[0]);
+      console.log('Sample rounds data:', scoreUpdates[0].rounds);
       
       const { error } = await supabase
         .from('scores')
