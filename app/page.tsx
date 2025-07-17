@@ -1011,24 +1011,21 @@ const tournamentLogos: Record<string, string> = {
         const score = currentScores[golferName];
         if (!score) return null;
         
-        let liveToPar = score.toPar;
+        let toPar = score.toPar;
         
-        // If player is currently playing and has no completed rounds, calculate from current round
-        if (score.madeCut && score.currentRound && score.thru && score.completedRounds === 0) {
-          // For players with no completed rounds but currently playing
-          liveToPar = score.currentRound - currentPar;
+        // Only special handling for missed cut - use penalty scoring
+        if (!score.madeCut) {
+          const rounds = [...score.rounds];
+          const penaltyScore = currentPar + 8;
+          rounds[2] = penaltyScore; // Round 3 penalty
+          rounds[3] = penaltyScore; // Round 4 penalty
+          const totalScore = rounds.reduce((sum: number, round) => sum + (round || 0), 0);
+          toPar = totalScore - (currentPar * 4); // Calculate against 4 rounds
         }
-        // If player has completed rounds AND is currently playing, add current round progress
-        else if (score.madeCut && score.currentRound && score.thru && score.completedRounds > 0) {
-          // Add current round progress to existing toPar
-          const currentRoundToPar = score.currentRound - currentPar;
-          liveToPar = score.toPar + currentRoundToPar;
-        }
-        // Otherwise just use the scorecard's toPar (completed rounds or missed cut)
         
         return {
           name: golferName,
-          toPar: liveToPar,
+          toPar: toPar,
           madeCut: score.madeCut,
           total: score.total,
           rounds: score.rounds,
@@ -1036,7 +1033,7 @@ const tournamentLogos: Record<string, string> = {
           thru: score.thru,
           currentRound: score.currentRound
         };
-      }).filter(Boolean); // Only filter out null scores (no score data at all)
+      }).filter(Boolean);
 
       const bestFour = golferScores.sort((a, b) => a!.toPar - b!.toPar).slice(0, 4);
       const totalScore = bestFour.reduce((sum: number, golfer) => sum + golfer!.toPar, 0);
