@@ -590,6 +590,7 @@ const tournamentLogos: Record<string, string> = {
     if (!selectedTournament) return;
 
     const scoreUpdates: any[] = [];
+    const processedGolfers = new Set<string>(); // Track already processed golfers
     
     // Helper function to extract numbers from MongoDB-like format
     const extractNumber = (value: any): number | null => {
@@ -617,7 +618,10 @@ const tournamentLogos: Record<string, string> = {
       const fullName = `${player.firstName} ${player.lastName}`.trim();
       const golferName = findMatchingGolfer(fullName);
       
-      if (golferName) {
+      if (golferName && !processedGolfers.has(golferName)) {
+        // Mark this golfer as processed to avoid duplicates
+        processedGolfers.add(golferName);
+        
         console.log('Matched player:', fullName, '→', golferName);
         
         // Extract round scores from the rounds array
@@ -669,13 +673,15 @@ const tournamentLogos: Record<string, string> = {
           rawCurrentHole: player.currentHole,
           rawCurrentRoundScore: player.currentRoundScore
         });
+      } else if (golferName && processedGolfers.has(golferName)) {
+        console.log('Skipping duplicate:', fullName, '→', golferName, '(already processed)');
       } else {
         console.log('No match found for:', fullName);
       }
     });
 
     if (scoreUpdates.length > 0) {
-      console.log('Saving', scoreUpdates.length, 'score updates to database');
+      console.log('Saving', scoreUpdates.length, 'unique score updates to database');
       console.log('Sample score update:', scoreUpdates[0]);
       console.log('Sample rounds data:', scoreUpdates[0].rounds);
       
