@@ -228,54 +228,36 @@ const tournamentLogos: Record<string, string> = {
           }
           
           // Only show "in progress" indicators if:
-          // 1. There's a valid thru value (holes completed in current round)
-          // 2. The thru value is between 1-17 (indicating mid-round, not finished)
-          // 3. The current round hasn't been added to the rounds array yet
-          // 4. There's a currentRound score that makes sense as "in progress"
+          // 1. Player has fewer than 4 completed rounds
+          // 2. There's a valid thru value between 1-17 (not 18 = finished)
+          // 3. There's a current round score that looks reasonable (not a completed round score)
           
           const hasValidThru = score.thru && score.thru > 0 && score.thru < 18;
           const hasCurrentRoundScore = score.current_round !== null && score.current_round !== undefined;
-          const currentRoundSlotEmpty = rounds[completedRounds] === null; // Next round slot is empty
+          const currentRoundLooksInProgress = hasCurrentRoundScore && score.current_round >= -10 && score.current_round <= 10; // Reasonable "to par" range for partial round
           
-          // Only consider someone "in progress" if all conditions are met
-          const isActuallyInProgress = hasValidThru && hasCurrentRoundScore && currentRoundSlotEmpty && completedRounds < 4;
+          // Only show in-progress if all conditions are met AND it makes sense
+          const shouldShowInProgress = completedRounds < 4 && hasValidThru && currentRoundLooksInProgress;
           
-          if (isActuallyInProgress) {
-            // Player is genuinely mid-round
+          if (shouldShowInProgress) {
+            // Player is genuinely mid-round - show the thru and current round indicators
             actualThru = score.thru;
             actualCurrentRound = score.current_round;
-            
-            // Add the current round progress to toPar calculation
-            // This represents their score relative to par for holes played in current round
-            const holesPlayedInCurrentRound = score.thru;
-            const parForHolesPlayed = (tournamentPar / 18) * holesPlayedInCurrentRound;
-            const currentRoundToPar = score.current_round - parForHolesPlayed;
-            toPar += currentRoundToPar;
-          } else {
-            // Player has finished their round(s) for the day
-            // Don't show any "in progress" indicators
-            actualThru = null;
-            actualCurrentRound = null;
-            
-            // If the API provided a currentRound score but the player isn't mid-round,
-            // it likely means this score is already included in the rounds array
-            // or represents a completed round that should be there
-            
-            // Check if we're missing a completed round that the API shows
-            if (hasCurrentRoundScore && currentRoundSlotEmpty && completedRounds < 4) {
-              // The currentRound might be a completed round that should be added
-              // But only if it makes sense as a full round score (typically 60-90)
-              const currentRoundScore = score.current_round;
-              if (currentRoundScore >= 60 && currentRoundScore <= 90) {
-                // This looks like a completed round score, add it to rounds
-                rounds[completedRounds] = currentRoundScore;
-                const newTotalScore = totalScore + currentRoundScore;
-                const newCompletedRounds = completedRounds + 1;
-                const newPar = tournamentPar * newCompletedRounds;
-                toPar = newTotalScore - newPar;
-                
-                console.log(`🔄 Added completed round for ${score.golfer_name}: ${currentRoundScore} (Round ${newCompletedRounds})`);
-              }
+            // Don't modify toPar - it should only reflect completed rounds
+          }
+          
+          // If current_round looks like a completed round score (60-90), add it to rounds
+          if (hasCurrentRoundScore && !shouldShowInProgress && completedRounds < 4) {
+            const currentRoundScore = score.current_round;
+            if (currentRoundScore >= 60 && currentRoundScore <= 90) {
+              // This looks like a completed round score, add it to rounds
+              rounds[completedRounds] = currentRoundScore;
+              const newTotalScore = totalScore + currentRoundScore;
+              const newCompletedRounds = completedRounds + 1;
+              const newPar = tournamentPar * newCompletedRounds;
+              toPar = newTotalScore - newPar;
+              
+              console.log(`🔄 Added completed round for ${score.golfer_name}: ${currentRoundScore} (Round ${newCompletedRounds})`);
             }
           }
 
