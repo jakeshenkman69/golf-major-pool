@@ -71,6 +71,10 @@ const GolfMajorPool = () => {
   const [loading, setLoading] = useState<boolean>(false);
   const [currentPar, setCurrentPar] = useState<number>(72);
   
+  // Sorting state for scorecard
+  const [sortColumn, setSortColumn] = useState<string>('toPar');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  
   // API Integration states
   const [apiKey, setApiKey] = useState<string>('');
   const [tournamentApiId, setTournamentApiId] = useState<string>('');
@@ -407,6 +411,106 @@ const tournamentLogos: Record<string, string> = {
       alert(`Removed ${removedCount} duplicate golfers!`);
     }
   };
+
+  // Sorting functions for scorecard
+  const handleSort = (column: string) => {
+    if (sortColumn === column) {
+      // Same column, toggle direction
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      // New column, default to ascending
+      setSortColumn(column);
+      setSortDirection('asc');
+    }
+  };
+
+  const getSortedGolfers = () => {
+    const uniqueGolfers = golfers.filter((golfer, index, arr) => 
+      arr.findIndex(g => g.name === golfer.name) === index
+    );
+
+    const columnToSort = sortColumn || 'toPar'; // Default to toPar if no sort column
+
+    return [...uniqueGolfers].sort((a, b) => {
+      let aValue: any;
+      let bValue: any;
+
+      switch (columnToSort) {
+        case 'name':
+          aValue = a.name.toLowerCase();
+          bValue = b.name.toLowerCase();
+          break;
+        case 'toPar':
+          aValue = currentScores[a.name]?.toPar || 999;
+          bValue = currentScores[b.name]?.toPar || 999;
+          break;
+        case 'thru':
+          aValue = currentScores[a.name]?.thru || 0;
+          bValue = currentScores[b.name]?.thru || 0;
+          break;
+        case 'current':
+          aValue = currentScores[a.name]?.currentRound || 999;
+          bValue = currentScores[b.name]?.currentRound || 999;
+          break;
+        case 'r1':
+          aValue = currentScores[a.name]?.rounds[0] || 999;
+          bValue = currentScores[b.name]?.rounds[0] || 999;
+          break;
+        case 'r2':
+          aValue = currentScores[a.name]?.rounds[1] || 999;
+          bValue = currentScores[b.name]?.rounds[1] || 999;
+          break;
+        case 'r3':
+          aValue = currentScores[a.name]?.rounds[2] || 999;
+          bValue = currentScores[b.name]?.rounds[2] || 999;
+          break;
+        case 'r4':
+          aValue = currentScores[a.name]?.rounds[3] || 999;
+          bValue = currentScores[b.name]?.rounds[3] || 999;
+          break;
+        case 'madeCut':
+          aValue = currentScores[a.name]?.madeCut ? 1 : 0;
+          bValue = currentScores[b.name]?.madeCut ? 1 : 0;
+          break;
+        default:
+          return 0;
+      }
+
+      // Handle string comparison
+      if (typeof aValue === 'string' && typeof bValue === 'string') {
+        const comparison = aValue.localeCompare(bValue);
+        return sortDirection === 'asc' ? comparison : -comparison;
+      }
+
+      // Handle numeric comparison
+      if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
+      if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+  };
+
+  const SortableHeader = ({ column, children, className = "" }: { 
+    column: string; 
+    children: React.ReactNode; 
+    className?: string;
+  }) => (
+    <th 
+      className={`px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none ${className}`}
+      onClick={() => handleSort(column)}
+    >
+      <div className="flex items-center justify-center gap-1">
+        {children}
+        {sortColumn === column && (
+          <span className="text-blue-600">
+            {sortDirection === 'asc' ? '↑' : '↓'}
+          </span>
+        )}
+        {sortColumn !== column && (
+          <span className="text-gray-300 opacity-50">↕</span>
+        )}
+      </div>
+    </th>
+  );
 
   const addPlayer = async () => {
     if (newPlayer.name && Object.keys(newPlayer.picks).length === 6) {
@@ -1792,7 +1896,37 @@ const tournamentLogos: Record<string, string> = {
               {activeTab === 'scorecard' && (
                 <div className="space-y-4 sm:space-y-6">
                   <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-                    <h3 className="font-semibold text-gray-800">Tournament Scorecard</h3>
+                    <div className="flex flex-col gap-2">
+                      <h3 className="font-semibold text-gray-800">Tournament Scorecard</h3>
+                      {(sortColumn && sortColumn !== 'toPar') && (
+                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                          <span>Sorted by: <strong>{sortColumn}</strong> ({sortDirection === 'asc' ? 'ascending' : 'descending'})</span>
+                          <button
+                            onClick={() => {
+                              setSortColumn('toPar');
+                              setSortDirection('asc');
+                            }}
+                            className="text-blue-600 hover:text-blue-800 underline text-xs"
+                          >
+                            Reset to To Par
+                          </button>
+                        </div>
+                      )}
+                      {(sortColumn === 'toPar' && sortDirection === 'desc') && (
+                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                          <span>Sorted by: <strong>To Par</strong> (descending)</span>
+                          <button
+                            onClick={() => {
+                              setSortColumn('toPar');
+                              setSortDirection('asc');
+                            }}
+                            className="text-blue-600 hover:text-blue-800 underline text-xs"
+                          >
+                            Reset to Default
+                          </button>
+                        </div>
+                      )}
+                    </div>
                     <div className="flex flex-wrap gap-2">
                       {/* API Controls - Admin Only */}
                       {isAdminMode && (
@@ -1916,39 +2050,37 @@ const tournamentLogos: Record<string, string> = {
                       <table className="w-full bg-white text-gray-900">
                         <thead className="bg-gray-50">
                           <tr>
-                            <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 bg-gray-50 z-10">
+                            <SortableHeader column="name" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 bg-gray-50 z-10 cursor-pointer hover:bg-gray-100">
                               Golfer
-                            </th>
-                            <th className="px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            </SortableHeader>
+                            <SortableHeader column="toPar">
                               To Par
-                            </th>
-                            <th className="px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            </SortableHeader>
+                            <SortableHeader column="thru">
                               Thru
-                            </th>
-                            <th className="px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            </SortableHeader>
+                            <SortableHeader column="current">
                               Current
-                            </th>
-                            <th className="px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            </SortableHeader>
+                            <SortableHeader column="r1">
                               R1
-                            </th>
-                            <th className="px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            </SortableHeader>
+                            <SortableHeader column="r2">
                               R2
-                            </th>
-                            <th className="px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            </SortableHeader>
+                            <SortableHeader column="r3">
                               R3
-                            </th>
-                            <th className="px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            </SortableHeader>
+                            <SortableHeader column="r4">
                               R4
-                            </th>
-                            <th className="px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            </SortableHeader>
+                            <SortableHeader column="madeCut">
                               Made Cut
-                            </th>
+                            </SortableHeader>
                           </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
-                          {golfers
-                            .filter((golfer, index, arr) => arr.findIndex(g => g.name === golfer.name) === index) // Remove duplicates
-                            .map(golfer => {
+                          {getSortedGolfers().map(golfer => {
                             const score = currentScores[golfer.name];
                             const isEditing = editingScores[golfer.name];
                             const editing = isEditing || { 
@@ -2097,8 +2229,8 @@ const tournamentLogos: Record<string, string> = {
 
                   {/* Legend */}
                   <div className="bg-gray-50 p-3 sm:p-4 rounded-lg">
-                    <h4 className="font-medium text-gray-800 mb-2 text-sm">Legend:</h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 text-xs text-gray-600">
+                    <h4 className="font-medium text-gray-800 mb-2 text-sm">Legend & Instructions:</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 text-xs text-gray-600 mb-3">
                       <div className="flex items-center gap-2">
                         <span className="inline-block w-2 h-2 bg-blue-500 rounded-full"></span>
                         <span>Selected by players</span>
@@ -2122,6 +2254,12 @@ const tournamentLogos: Record<string, string> = {
                       <div className="flex items-center gap-2">
                         <span className="text-gray-600">72</span>
                         <span>Current round score</span>
+                      </div>
+                    </div>
+                    <div className="border-t border-gray-200 pt-2">
+                      <div className="flex items-center gap-2 text-xs text-blue-600">
+                        <span className="font-medium">💡 Tip:</span>
+                        <span>Click any column header to sort. Click again to reverse order. Use "Reset Sort" to return to original order.</span>
                       </div>
                     </div>
                   </div>
