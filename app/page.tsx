@@ -218,22 +218,30 @@ const tournamentLogos: Record<string, string> = {
           const completedRounds = validRounds.length;
           
           let toPar = 0;
+          let actualThru = score.thru;
+          let actualCurrentRound = score.current_round;
           
-          // Calculate toPar including current round progress
+          // Calculate toPar based on completed rounds
           if (completedRounds > 0) {
-            // Has completed rounds: use completed rounds total vs par
             const par = tournamentPar * completedRounds;
             toPar = totalScore - par;
-            
-            // Add current round progress if playing (current_round is already vs par)
-            if (score.current_round && score.thru) {
-              toPar += score.current_round;
-            }
-          } else if (score.current_round && score.thru) {
-            // No completed rounds but currently playing: current_round is already vs par
-            toPar = score.current_round;
           }
-          // else: no completed rounds and not currently playing = 0
+          
+          // Determine if golfer is actually still playing a new round
+          const isPlayingNewRound = score.current_round && score.thru && (
+            completedRounds === 0 || // First round in progress
+            (completedRounds > 0 && rounds[completedRounds] === null) // Next round in progress (no score for current round index)
+          );
+          
+          if (isPlayingNewRound) {
+            // Add current round progress to toPar
+            toPar += score.current_round;
+          } else if (completedRounds > 0 && score.current_round && score.thru) {
+            // Golfer has completed rounds AND API shows current round data
+            // This means the API data is stale - clear the current round indicators
+            actualThru = null;
+            actualCurrentRound = null;
+          }
 
           scoresMap[score.golfer_name] = {
             rounds: rounds,
@@ -241,8 +249,8 @@ const tournamentLogos: Record<string, string> = {
             toPar,
             madeCut: true,
             completedRounds,
-            thru: score.thru || null,
-            currentRound: score.current_round || null
+            thru: actualThru,
+            currentRound: actualCurrentRound
           };
         }
       });
