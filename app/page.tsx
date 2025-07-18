@@ -243,8 +243,16 @@ const tournamentLogos: Record<string, string> = {
         }
       });
 
+      // Remove duplicates from golfers list
+      const uniqueGolfers = tournamentData.golfers ? 
+        tournamentData.golfers.filter((golfer: Golfer, index: number, arr: Golfer[]) => 
+          arr.findIndex(g => g.name === golfer.name) === index
+        ) : [];
+
+      console.log(`🔍 Loaded ${tournamentData.golfers?.length || 0} golfers, filtered to ${uniqueGolfers.length} unique golfers`);
+
       // Set all the data
-      setGolfers(tournamentData.golfers || []);
+      setGolfers(uniqueGolfers);
       setTiers(tournamentData.tiers || {
         tier1: [], tier2: [], tier3: [], tier4: [], tier5: [], tier6: []
       });
@@ -252,7 +260,7 @@ const tournamentLogos: Record<string, string> = {
       setCurrentScores(scoresMap);
 
       // Load sample data if tournament is empty
-      if (!tournamentData.golfers || tournamentData.golfers.length === 0) {
+      if (!uniqueGolfers || uniqueGolfers.length === 0) {
         const allGolfers = [...sampleGolfers];
         for (let i = 31; i <= 60; i++) {
           allGolfers.push({ name: `Golfer ${i}` });
@@ -355,16 +363,49 @@ const tournamentLogos: Record<string, string> = {
   };
 
   const organizeTiers = async (golferList: Golfer[]) => {
+    // Remove duplicates from golfer list
+    const uniqueGolfers = golferList.filter((golfer, index, arr) => 
+      arr.findIndex(g => g.name === golfer.name) === index
+    );
+    
+    console.log(`🔧 Organizing tiers: ${golferList.length} golfers → ${uniqueGolfers.length} unique golfers`);
+    
     const newTiers: TierData = {
-      tier1: golferList.slice(0, 10),
-      tier2: golferList.slice(10, 20),
-      tier3: golferList.slice(20, 30),
-      tier4: golferList.slice(30, 40),
-      tier5: golferList.slice(40, 50),
-      tier6: golferList.slice(50)
+      tier1: uniqueGolfers.slice(0, 10),
+      tier2: uniqueGolfers.slice(10, 20),
+      tier3: uniqueGolfers.slice(20, 30),
+      tier4: uniqueGolfers.slice(30, 40),
+      tier5: uniqueGolfers.slice(40, 50),
+      tier6: uniqueGolfers.slice(50)
     };
+    
+    setGolfers(uniqueGolfers);
     setTiers(newTiers);
     await saveTournamentData();
+  };
+
+  const cleanupDuplicateGolfers = async () => {
+    if (!selectedTournament) {
+      alert('Please select a tournament first');
+      return;
+    }
+
+    const uniqueGolfers = golfers.filter((golfer, index, arr) => 
+      arr.findIndex(g => g.name === golfer.name) === index
+    );
+
+    if (uniqueGolfers.length === golfers.length) {
+      alert('No duplicates found!');
+      return;
+    }
+
+    const removedCount = golfers.length - uniqueGolfers.length;
+    
+    if (window.confirm(`Found ${removedCount} duplicate golfers. Remove them?`)) {
+      console.log(`🧹 Cleaning up ${removedCount} duplicate golfers`);
+      await organizeTiers(uniqueGolfers);
+      alert(`Removed ${removedCount} duplicate golfers!`);
+    }
   };
 
   const addPlayer = async () => {
@@ -1533,6 +1574,30 @@ const tournamentLogos: Record<string, string> = {
                     </div>
                   </div>
 
+                  {/* Cleanup Section */}
+                  <div className="bg-orange-50 p-3 sm:p-4 rounded-lg">
+                    <h3 className="font-semibold mb-2 text-orange-800 text-sm sm:text-base">Cleanup Tools</h3>
+                    <p className="text-xs sm:text-sm text-orange-600 mb-3">
+                      Remove duplicate golfers that may have been added during API imports or manual uploads.
+                    </p>
+                    <div className="flex items-center gap-4">
+                      <button
+                        onClick={cleanupDuplicateGolfers}
+                        className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 text-sm"
+                      >
+                        Remove Duplicate Golfers
+                      </button>
+                      <span className="text-sm text-orange-600">
+                        Current golfers: {golfers.length}
+                      </span>
+                    </div>
+                    <div className="mt-3 p-2 sm:p-3 bg-orange-100 border border-orange-200 rounded">
+                      <p className="text-xs text-orange-800">
+                        <strong>Safe to use:</strong> This will only remove exact duplicate names and reorganize tiers.
+                      </p>
+                    </div>
+                  </div>
+
                   {/* Tiers Display */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                     {Object.entries(tiers).map(([tierName, tierGolfers], index) => (
@@ -1881,7 +1946,9 @@ const tournamentLogos: Record<string, string> = {
                           </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
-                          {golfers.map(golfer => {
+                          {golfers
+                            .filter((golfer, index, arr) => arr.findIndex(g => g.name === golfer.name) === index) // Remove duplicates
+                            .map(golfer => {
                             const score = currentScores[golfer.name];
                             const isEditing = editingScores[golfer.name];
                             const editing = isEditing || { 
