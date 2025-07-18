@@ -441,32 +441,32 @@ const tournamentLogos: Record<string, string> = {
           bValue = b.name.toLowerCase();
           break;
         case 'toPar':
-          aValue = currentScores[a.name]?.toPar || 999;
-          bValue = currentScores[b.name]?.toPar || 999;
+          aValue = currentScores[a.name]?.toPar ?? 999;
+          bValue = currentScores[b.name]?.toPar ?? 999;
           break;
         case 'thru':
-          aValue = currentScores[a.name]?.thru || 0;
-          bValue = currentScores[b.name]?.thru || 0;
+          aValue = currentScores[a.name]?.thru ?? 0;
+          bValue = currentScores[b.name]?.thru ?? 0;
           break;
         case 'current':
-          aValue = currentScores[a.name]?.currentRound || 999;
-          bValue = currentScores[b.name]?.currentRound || 999;
+          aValue = currentScores[a.name]?.currentRound ?? 999;
+          bValue = currentScores[b.name]?.currentRound ?? 999;
           break;
         case 'r1':
-          aValue = currentScores[a.name]?.rounds[0] || 999;
-          bValue = currentScores[b.name]?.rounds[0] || 999;
+          aValue = currentScores[a.name]?.rounds[0] ?? 999;
+          bValue = currentScores[b.name]?.rounds[0] ?? 999;
           break;
         case 'r2':
-          aValue = currentScores[a.name]?.rounds[1] || 999;
-          bValue = currentScores[b.name]?.rounds[1] || 999;
+          aValue = currentScores[a.name]?.rounds[1] ?? 999;
+          bValue = currentScores[b.name]?.rounds[1] ?? 999;
           break;
         case 'r3':
-          aValue = currentScores[a.name]?.rounds[2] || 999;
-          bValue = currentScores[b.name]?.rounds[2] || 999;
+          aValue = currentScores[a.name]?.rounds[2] ?? 999;
+          bValue = currentScores[b.name]?.rounds[2] ?? 999;
           break;
         case 'r4':
-          aValue = currentScores[a.name]?.rounds[3] || 999;
-          bValue = currentScores[b.name]?.rounds[3] || 999;
+          aValue = currentScores[a.name]?.rounds[3] ?? 999;
+          bValue = currentScores[b.name]?.rounds[3] ?? 999;
           break;
         case 'madeCut':
           aValue = currentScores[a.name]?.madeCut ? 1 : 0;
