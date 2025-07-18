@@ -133,7 +133,7 @@ const tournamentLogos: Record<string, string> = {
       if (error) throw error;
 
       const tournamentMap: Record<string, TournamentData> = {};
-      data?.forEach(tournament => {
+      data?.forEach((tournament: any) => {
         tournamentMap[tournament.tournament_key] = {
           name: tournament.name,
           logo: tournament.logo || tournamentLogos[tournament.tournament_key], // Add logo support
@@ -188,7 +188,7 @@ const tournamentLogos: Record<string, string> = {
 
       // Process scores into the format our app expects
       const scoresMap: Record<string, ScoreData> = {};
-      scoresData?.forEach(score => {
+      scoresData?.forEach((score: any) => {
         // Handle missed cut players
         if (!score.made_cut) {
           // For missed cut, ensure rounds 3 and 4 are set to par + 8
@@ -198,7 +198,7 @@ const tournamentLogos: Record<string, string> = {
           rounds[3] = penaltyScore; // Round 4
           
           const totalScore = rounds.reduce((sum: number, round: number | null) => sum + (round || 0), 0);
-          const actualRounds = rounds.filter(r => r !== null).length;
+          const actualRounds = rounds.filter((r: number | null) => r !== null).length;
           const toPar = totalScore - (tournamentPar * 4); // Calculate against par for 4 rounds
           
           scoresMap[score.golfer_name] = {
@@ -284,7 +284,7 @@ const tournamentLogos: Record<string, string> = {
             total: rounds.reduce((sum: number, round: number | null) => sum + (round || 0), 0),
             toPar,
             madeCut: true,
-            completedRounds: rounds.filter(r => r !== null).length,
+            completedRounds: rounds.filter((r: number | null) => r !== null).length,
             thru: actualThru,
             currentRound: actualCurrentRound
           };
@@ -294,7 +294,7 @@ const tournamentLogos: Record<string, string> = {
       // Remove duplicates from golfers list
       const uniqueGolfers = tournamentData.golfers ? 
         tournamentData.golfers.filter((golfer: Golfer, index: number, arr: Golfer[]) => 
-          arr.findIndex(g => g.name === golfer.name) === index
+          arr.findIndex((g: Golfer) => g.name === golfer.name) === index
         ) : [];
 
       console.log(`🔍 Loaded ${tournamentData.golfers?.length || 0} golfers, filtered to ${uniqueGolfers.length} unique golfers`);
@@ -412,8 +412,8 @@ const tournamentLogos: Record<string, string> = {
 
   const organizeTiers = async (golferList: Golfer[]) => {
     // Remove duplicates from golfer list
-    const uniqueGolfers = golferList.filter((golfer, index, arr) => 
-      arr.findIndex(g => g.name === golfer.name) === index
+    const uniqueGolfers = golferList.filter((golfer: Golfer, index: number, arr: Golfer[]) => 
+      arr.findIndex((g: Golfer) => g.name === golfer.name) === index
     );
     
     console.log(`🔧 Organizing tiers: ${golferList.length} golfers → ${uniqueGolfers.length} unique golfers`);
@@ -438,8 +438,8 @@ const tournamentLogos: Record<string, string> = {
       return;
     }
 
-    const uniqueGolfers = golfers.filter((golfer, index, arr) => 
-      arr.findIndex(g => g.name === golfer.name) === index
+    const uniqueGolfers = golfers.filter((golfer: Golfer, index: number, arr: Golfer[]) => 
+      arr.findIndex((g: Golfer) => g.name === golfer.name) === index
     );
 
     if (uniqueGolfers.length === golfers.length) {
@@ -469,13 +469,13 @@ const tournamentLogos: Record<string, string> = {
   };
 
   const getSortedGolfers = () => {
-    const uniqueGolfers = golfers.filter((golfer, index, arr) => 
-      arr.findIndex(g => g.name === golfer.name) === index
+    const uniqueGolfers = golfers.filter((golfer: Golfer, index: number, arr: Golfer[]) => 
+      arr.findIndex((g: Golfer) => g.name === golfer.name) === index
     );
 
     const columnToSort = sortColumn || 'toPar'; // Default to toPar if no sort column
 
-    return [...uniqueGolfers].sort((a, b) => {
+    return [...uniqueGolfers].sort((a: Golfer, b: Golfer) => {
       let aValue: any;
       let bValue: any;
 
@@ -559,7 +559,7 @@ const tournamentLogos: Record<string, string> = {
   const addPlayer = async () => {
     if (newPlayer.name && Object.keys(newPlayer.picks).length === 6) {
       // Check if this exact team already exists
-      const teamExists = players.some(player => 
+      const teamExists = players.some((player: Player) => 
         JSON.stringify(player.picks) === JSON.stringify(newPlayer.picks)
       );
       
@@ -599,7 +599,7 @@ const tournamentLogos: Record<string, string> = {
 
       if (error) throw error;
 
-      setPlayers(players.filter(p => p.id !== playerId));
+      setPlayers(players.filter((p: Player) => p.id !== playerId));
     } catch (error) {
       console.error('Error deleting player:', error);
     }
@@ -609,8 +609,8 @@ const tournamentLogos: Record<string, string> = {
     try {
       const scoreUpdates: any[] = [];
       
-      Object.entries(editingScores).forEach(([golferName, scoreData]) => {
-        const rounds = scoreData.rounds?.map(r => r === '' || r === null ? null : parseInt(r as string)) || [null, null, null, null];
+      Object.entries(editingScores).forEach(([golferName, scoreData]: [string, any]) => {
+        const rounds = scoreData.rounds?.map((r: number | null | string) => r === '' || r === null ? null : parseInt(r as string)) || [null, null, null, null];
         
         // Ensure missed cut players have penalty scores
         if (scoreData.madeCut === false) {
@@ -718,7 +718,7 @@ const tournamentLogos: Record<string, string> = {
               };
               
               // Try partial matching
-              const mapKey = Object.keys(tournamentMap).find(key => 
+              const mapKey = Object.keys(tournamentMap).find((key: string) => 
                 tournamentPart.toLowerCase().includes(key)
               );
               
@@ -913,7 +913,7 @@ const tournamentLogos: Record<string, string> = {
     if (scoreUpdates.length > 0) {
       const sampleUpdates = scoreUpdates.slice(0, 3);
       console.log('🚨 ABOUT TO UPDATE SCORES - Sample data:');
-      sampleUpdates.forEach(update => {
+      sampleUpdates.forEach((update: any) => {
         console.log(`${update.golfer_name}: Rounds [${update.rounds.join(', ')}], Made Cut: ${update.made_cut}`);
       });
       
@@ -921,7 +921,7 @@ const tournamentLogos: Record<string, string> = {
         `⚠️ API SCORE UPDATE CONFIRMATION\n\n` +
         `About to update ${scoreUpdates.length} golfer scores.\n\n` +
         `Sample updates:\n` +
-        sampleUpdates.map(u => `• ${u.golfer_name}: [${u.rounds.join(', ')}]`).join('\n') +
+        sampleUpdates.map((u: any) => `• ${u.golfer_name}: [${u.rounds.join(', ')}]`).join('\n') +
         `\n\nThis will overwrite existing scores. Compare with PGA Tour leaderboard first.\n\n` +
         `Continue with update?`
       );
@@ -950,19 +950,19 @@ const tournamentLogos: Record<string, string> = {
       console.log(`✓ Successfully updated scores for ${scoreUpdates.length} golfers`);
       
       // Report on unmatched golfers
-      const tournamentGolfers = golfers.map(g => g.name);
-      const updatedGolfers = scoreUpdates.map(s => s.golfer_name);
-      const unmatchedInTournament = tournamentGolfers.filter(name => !updatedGolfers.includes(name));
+      const tournamentGolfers = golfers.map((g: Golfer) => g.name);
+      const updatedGolfers = scoreUpdates.map((s: any) => s.golfer_name);
+      const unmatchedInTournament = tournamentGolfers.filter((name: string) => !updatedGolfers.includes(name));
       
       if (unmatchedInTournament.length > 0) {
         console.log(`⚠️ ${unmatchedInTournament.length} golfers in your tournament didn't get API updates:`);
-        unmatchedInTournament.forEach(name => console.log(`   - ${name}`));
+        unmatchedInTournament.forEach((name: string) => console.log(`   - ${name}`));
         console.log('These golfers may not be playing in this tournament or have different names in the API.');
       }
       
       if (unmatchedApiPlayers.length > 0) {
         console.log(`📋 ${unmatchedApiPlayers.length} players from API couldn't be matched to your tournament:`);
-        unmatchedApiPlayers.slice(0, 10).forEach(name => console.log(`   - ${name}`));
+        unmatchedApiPlayers.slice(0, 10).forEach((name: string) => console.log(`   - ${name}`));
         if (unmatchedApiPlayers.length > 10) {
           console.log(`   ... and ${unmatchedApiPlayers.length - 10} more`);
         }
@@ -1012,7 +1012,7 @@ const tournamentLogos: Record<string, string> = {
     
     if (specialMatches[normalizedApiName]) {
       const matchedName = specialMatches[normalizedApiName];
-      const golferExists = golfers.find(g => g.name === matchedName);
+      const golferExists = golfers.find((g: Golfer) => g.name === matchedName);
       if (golferExists) {
         console.log(`✓ Special case match: "${apiPlayerName}" → "${matchedName}"`);
         return matchedName;
@@ -1034,7 +1034,7 @@ const tournamentLogos: Record<string, string> = {
     // Try first + last name combination (more specific than just last name)
     if (apiParts.length >= 2) {
       const apiFirstName = apiParts[0];
-      const firstLastMatches = golfers.filter(g => {
+      const firstLastMatches = golfers.filter((g: Golfer) => {
         const golferParts = normalizeString(g.name).split(' ').filter(p => p.length > 1);
         if (golferParts.length >= 2) {
           const golferFirstName = golferParts[0];
@@ -1056,7 +1056,7 @@ const tournamentLogos: Record<string, string> = {
     
     // Try last name match ONLY if there's exactly one match (to avoid Cameron/Jordan Smith confusion)
     if (apiLastName && apiLastName.length > 2) {
-      const lastNameMatches = golfers.filter(g => {
+      const lastNameMatches = golfers.filter((g: Golfer) => {
         const golferParts = normalizeString(g.name).split(' ').filter(p => p.length > 1);
         const golferLastName = golferParts[golferParts.length - 1];
         return golferLastName === apiLastName;
@@ -1073,7 +1073,7 @@ const tournamentLogos: Record<string, string> = {
     }
     
     // Try partial name match (contains) - but be careful
-    const partialMatch = golfers.find(g => {
+    const partialMatch = golfers.find((g: Golfer) => {
       const golferNormalized = normalizeString(g.name);
       // Check if significant parts of the names overlap
       const commonWords = apiParts.filter(part => 
@@ -1090,7 +1090,7 @@ const tournamentLogos: Record<string, string> = {
     // Try reversed name order (for Asian names, etc.)
     if (apiParts.length >= 2) {
       const reversedName = `${apiLastName} ${apiParts[0]}`;
-      const reversedMatch = golfers.find(g => 
+      const reversedMatch = golfers.find((g: Golfer) => 
         normalizeString(g.name).includes(reversedName) || reversedName.includes(normalizeString(g.name))
       );
       
@@ -1103,7 +1103,7 @@ const tournamentLogos: Record<string, string> = {
     console.log(`✗ No match found for: "${apiPlayerName}" (normalized: "${normalizedApiName}")`);
     
     // Log available similar names for debugging
-    const similarNames = golfers.filter(g => {
+    const similarNames = golfers.filter((g: Golfer) => {
       const golferNormalized = normalizeString(g.name);
       return apiParts.some(part => part.length > 2 && golferNormalized.includes(part));
     }).slice(0, 3);
@@ -1171,7 +1171,7 @@ const tournamentLogos: Record<string, string> = {
         const text = e.target?.result as string;
         const lines = text.split('\n').filter(line => line.trim());
         
-        const parsedGolfers = lines.map((line, index) => {
+        const parsedGolfers = lines.map((line: string, index: number) => {
           const name = line.split(',')[0]?.trim();
           return { name, order: index };
         }).filter(golfer => golfer.name);
@@ -1213,7 +1213,7 @@ const tournamentLogos: Record<string, string> = {
   };
 
   const initializeEditingScores = () => {
-    const allGolfers = golfers.map(g => g.name);
+    const allGolfers = golfers.map((g: Golfer) => g.name);
     const initial: Record<string, { rounds: (number | null)[]; madeCut: boolean; thru?: number; currentRound?: number }> = {};
     
     allGolfers.forEach(golferName => {
@@ -1230,7 +1230,7 @@ const tournamentLogos: Record<string, string> = {
 
   const calculatePlayerScores = () => {
     const results = players.map(player => {
-      const golferScores = Object.values(player.picks).map(golferName => {
+      const golferScores = Object.values(player.picks).map((golferName: string) => {
         const score = currentScores[golferName];
         if (!score) return null;
         
@@ -1242,7 +1242,7 @@ const tournamentLogos: Record<string, string> = {
           const penaltyScore = currentPar + 8;
           rounds[2] = penaltyScore; // Round 3 penalty
           rounds[3] = penaltyScore; // Round 4 penalty
-          const totalScore = rounds.reduce((sum: number, round) => sum + (round || 0), 0);
+          const totalScore = rounds.reduce((sum: number, round: number | null) => sum + (round || 0), 0);
           toPar = totalScore - (currentPar * 4); // Calculate against 4 rounds
         }
         
@@ -1258,7 +1258,7 @@ const tournamentLogos: Record<string, string> = {
         };
       }).filter(Boolean);
 
-      const bestFour = golferScores.sort((a, b) => a!.toPar - b!.toPar).slice(0, 4);
+      const bestFour = golferScores.sort((a: any, b: any) => a!.toPar - b!.toPar).slice(0, 4);
       const totalScore = bestFour.reduce((sum: number, golfer) => sum + golfer!.toPar, 0);
       const lowestIndividualScore = golferScores.length > 0 
         ? Math.min(...golferScores.map(g => g!.toPar))
@@ -1273,7 +1273,7 @@ const tournamentLogos: Record<string, string> = {
       };
     });
 
-    return results.sort((a, b) => {
+    return results.sort((a: any, b: any) => {
       if (a.totalScore !== b.totalScore) return a.totalScore - b.totalScore;
       return a.lowestIndividualScore - b.lowestIndividualScore;
     });
@@ -1341,7 +1341,7 @@ const tournamentLogos: Record<string, string> = {
                   className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-sm sm:text-base min-h-[44px] text-gray-900"
                 >
                   <option value="" className="text-gray-500">Select Tournament</option>
-                  {Object.entries(tournaments).map(([key, tournament]) => (
+                  {Object.entries(tournaments).map(([key, tournament]: [string, TournamentData]) => (
                     <option key={key} value={key} className="text-gray-900">
                       {tournament.name}
                     </option>
@@ -1392,7 +1392,7 @@ const tournamentLogos: Record<string, string> = {
               </div>
               
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-                {Object.entries(tournaments).map(([key, tournament]) => (
+                                  {Object.entries(tournaments).map(([key, tournament]: [string, TournamentData]) => (
                   <div 
                     key={key}
                     onClick={() => setSelectedTournament(key)}
@@ -1748,7 +1748,7 @@ const tournamentLogos: Record<string, string> = {
 
                   {/* Tiers Display */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-                    {Object.entries(tiers).map(([tierName, tierGolfers], index) => (
+                    {Object.entries(tiers).map(([tierName, tierGolfers]: [string, Golfer[]], index: number) => (
                       <div key={tierName} className="bg-gray-50 p-3 sm:p-4 rounded-lg">
                         <h4 className="font-semibold mb-2 text-gray-700 text-sm sm:text-base">
                           Tier {index + 1} ({tierGolfers.length} golfers)
@@ -1785,7 +1785,7 @@ const tournamentLogos: Record<string, string> = {
                       </div>
                       
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                        {Object.entries(tiers).map(([tierName, tierGolfers], index) => (
+                        {Object.entries(tiers).map(([tierName, tierGolfers]: [string, Golfer[]], index: number) => (
                           <TierSelector
                             key={tierName}
                             tierName={tierName}
@@ -1818,7 +1818,7 @@ const tournamentLogos: Record<string, string> = {
                     <h3 className="font-semibold text-gray-800">Current Players ({players.length})</h3>
                     {players.map(player => {
                       // Calculate player's current performance
-                      const playerScores = Object.values(player.picks).map(golferName => {
+                      const playerScores = Object.values(player.picks).map((golferName: string) => {
                         const score = currentScores[golferName];
                         if (!score) return { name: golferName, toPar: null, status: 'No score' };
                         
@@ -1827,7 +1827,7 @@ const tournamentLogos: Record<string, string> = {
                           const penaltyScore = currentPar + 8;
                           rounds[2] = penaltyScore;
                           rounds[3] = penaltyScore;
-                          const cutScore = rounds.reduce((sum: number, round) => sum + (round || 0), 0);
+                          const cutScore = rounds.reduce((sum: number, round: number | null) => sum + (round || 0), 0);
                           return {
                             name: golferName,
                             toPar: cutScore - (currentPar * 4),
@@ -1844,8 +1844,8 @@ const tournamentLogos: Record<string, string> = {
                         };
                       });
 
-                      const validScores = playerScores.filter(g => g.toPar !== null);
-                      const bestFour = validScores.sort((a, b) => a.toPar! - b.toPar!).slice(0, 4);
+                      const validScores = playerScores.filter((g: any) => g.toPar !== null);
+                      const bestFour = validScores.sort((a: any, b: any) => a.toPar! - b.toPar!).slice(0, 4);
                       const totalScore = bestFour.reduce((sum: number, golfer) => sum + golfer.toPar!, 0);
 
                       return (
@@ -1876,9 +1876,9 @@ const tournamentLogos: Record<string, string> = {
                           
                           {/* Mobile: Stack view, Desktop: Grid view */}
                           <div className="space-y-2 sm:space-y-0 sm:grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 sm:gap-2">
-                            {Object.entries(player.picks).map(([tier, golfer], index) => {
-                              const golferScore = playerScores.find(g => g.name === golfer);
-                              const isInBestFour = bestFour.some(g => g.name === golfer);
+                            {Object.entries(player.picks).map(([tier, golfer]: [string, string], index: number) => {
+                              const golferScore = playerScores.find((g: any) => g.name === golfer);
+                              const isInBestFour = bestFour.some((g: any) => g.name === golfer);
                               
                               return (
                                 <div key={tier} className={`p-3 rounded-lg border ${
@@ -2137,7 +2137,7 @@ const tournamentLogos: Record<string, string> = {
                             
                             // Use editing data if available, otherwise use current scores
                             const displayData = isEditing ? {
-                              rounds: editing.rounds.map(r => r === '' || r === null ? null : parseInt(r as string)),
+                              rounds: editing.rounds.map((r: number | null | string) => r === '' || r === null ? null : parseInt(r as string)),
                               madeCut: editing.madeCut,
                               toPar: 0, // Will calculate below
                               thru: score?.thru || null,
@@ -2146,7 +2146,7 @@ const tournamentLogos: Record<string, string> = {
 
                             // Calculate to par for editing mode
                             if (isEditing && displayData) {
-                              const validRounds = displayData.rounds.filter(r => r !== null);
+                              const validRounds = displayData.rounds.filter((r: number | null) => r !== null);
                               const total = validRounds.reduce((sum: number, round) => sum + (round || 0), 0);
                               const completedRounds = validRounds.length;
                               displayData.toPar = completedRounds > 0 ? total - (currentPar * completedRounds) : 0;
