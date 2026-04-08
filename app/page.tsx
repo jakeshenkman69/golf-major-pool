@@ -99,7 +99,7 @@ const GolfMajorPool = () => {
 
 // Tournament logos mapping - Local images
 const tournamentLogos: Record<string, string> = {
-  'masters-2025': '/images/logos/masters-logo.png',
+  [`masters-${new Date().getFullYear()}`]: '/images/logos/masters-logo.png',
   'pga-championship-2025': '/images/logos/pga-championship-logo.png',
   'us-open-2025': '/images/logos/us-open-logo.png',
   'british-open-2025': '/images/logos/british-open-logo.png',
@@ -107,6 +107,7 @@ const tournamentLogos: Record<string, string> = {
   // Load tournaments from database
   useEffect(() => {
     loadTournaments();
+    checkAndRolloverYear();
   }, []);
 
   // Load tournament data when selection changes
@@ -628,7 +629,7 @@ const tournamentLogos: Record<string, string> = {
   };
 
   // SlashGolfAPI Integration Functions
-  const fetchTournamentSchedule = async (year: string = '2025') => {
+  const fetchTournamentSchedule = async (year: string = new Date().getFullYear().toString()) => {
     if (!apiKey) return null;
 
     try {
@@ -1120,6 +1121,42 @@ const tournamentLogos: Record<string, string> = {
   }, []);
 
   // ... (rest of the helper functions remain the same)
+  // ── Year Rollover ──────────────────────────────────────────────────────
+  const seedNewYearTournaments = async (year: number) => {
+    const newT = [
+      { tournament_key: `masters-${year}`, name: `${year} Masters Tournament`, par: 72 },
+      { tournament_key: `pga-championship-${year}`, name: `${year} PGA Championship`, par: 72 },
+      { tournament_key: `us-open-${year}`, name: `${year} U.S. Open`, par: 70 },
+      { tournament_key: `open-championship-${year}`, name: `${year} Open Championship`, par: 71 },
+    ];
+    for (const t of newT) {
+      await supabase.from('tournaments').upsert({
+        ...t, golfers: [], tiers: {}, updated_at: new Date().toISOString()
+      });
+    }
+    await loadTournaments();
+    alert(`${year} tournaments created! Use Admin mode to add golfers to each.`);
+  };
+
+  const checkAndRolloverYear = async () => {
+    if (typeof window === 'undefined') return;
+    const currentYear = new Date().getFullYear();
+    const storedYear = parseInt(localStorage.getItem('pool_year') || '0');
+    if (storedYear && storedYear < currentYear) {
+      const confirmed = window.confirm(
+        `It's ${currentYear}! Delete all ${storedYear} tournament data and create new ${currentYear} tournaments?\n\nThis will permanently remove all ${storedYear} players, scores, and tournaments.\n\nClick OK to proceed or Cancel to keep existing data.`
+      );
+      if (confirmed) {
+        await supabase.from('scores').delete().like('tournament_key', `%-${storedYear}`);
+        await supabase.from('players').delete().like('tournament_key', `%-${storedYear}`);
+        await supabase.from('tournaments').delete().like('tournament_key', `%-${storedYear}`);
+        await seedNewYearTournaments(currentYear);
+      }
+    }
+    localStorage.setItem('pool_year', currentYear.toString());
+  };
+  // ────────────────────────────────────────────────────────────────────────
+
   const handleAdminToggle = () => {
     if (isAdminMode) {
       setIsAdminMode(false);
@@ -1983,7 +2020,7 @@ const tournamentLogos: Record<string, string> = {
                                 setShowApiConfig(true);
                                 return;
                               }
-                              const schedule = await fetchTournamentSchedule('2025');
+                              const schedule = await fetchTournamentSchedule(new Date().getFullYear().toString());
                               if (schedule?.schedule) {
                                 console.log('Available tournaments for 2025:');
                                 schedule.schedule.forEach((t: any) => 
