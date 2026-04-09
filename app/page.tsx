@@ -129,6 +129,7 @@ const tournamentLogos: Record<string, string> = {
       const { data, error } = await supabase
         .from('tournaments')
         .select('*')
+        .like('tournament_key', `%-${new Date().getFullYear()}`)
         .order('created_at');
 
       if (error) throw error;
@@ -162,7 +163,7 @@ const tournamentLogos: Record<string, string> = {
         .from('tournaments')
         .select('*')
         .eq('tournament_key', tournamentKey)
-        .single();
+                .order('updated_at', { ascending: false }).limit(1).single();
 
       if (tournamentError) throw tournamentError;
 
