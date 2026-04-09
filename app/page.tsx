@@ -150,7 +150,22 @@ const GolfMajorPool = () => {
         };
       });
 
-      setTournaments(tournamentMap);
+      const tournamentOrder = [
+        `masters-${new Date().getFullYear()}`,
+        `pga-championship-${new Date().getFullYear()}`,
+        `us-open-${new Date().getFullYear()}`,
+        `open-championship-${new Date().getFullYear()}`,
+      ];
+
+      const sortedMap: Record<string, TournamentData> = {};
+      tournamentOrder.forEach(key => {
+        if (tournamentMap[key]) sortedMap[key] = tournamentMap[key];
+      });
+      Object.keys(tournamentMap).forEach(key => {
+        if (!sortedMap[key]) sortedMap[key] = tournamentMap[key];
+      });
+
+      setTournaments(sortedMap);
     } catch (error) {
       console.error('Error loading tournaments:', error);
     }
