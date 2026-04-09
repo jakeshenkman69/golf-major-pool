@@ -2250,7 +2250,7 @@ const tournamentLogos: Record<string, string> = {
                                 {/* Made Cut */}
                                 <td className="px-2 py-4 whitespace-nowrap text-center">
                                   {isEditing && isAdminMode ? (
-                                    <input
+                                    <input<img src="https://cdn.justjared.com/wp-content/uploads/headlines/2026/03/woods-mugshot-inside.jpg" alt="logo" className="h-10 w-10 rounded-full object-cover" />
                                       type="checkbox"
                                       checked={editing.madeCut}
                                       onChange={(e) => {
