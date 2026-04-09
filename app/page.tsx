@@ -33,13 +33,13 @@ type ScoreData = {
   toPar: number;
   madeCut: boolean;
   completedRounds: number;
-  thru?: number; // holes completed in current round
-  currentRound?: number; // current round score in progress
+  thru?: number;
+  currentRound?: number;
 };
 
 type TournamentData = {
   name: string;
-  logo?: string; // Added logo field
+  logo?: string;
   golfers: Golfer[];
   tiers: TierData;
   players: Player[];
@@ -97,13 +97,14 @@ const GolfMajorPool = () => {
     { name: 'Shane Lowry' }, { name: 'Si Woo Kim' }, { name: 'Tyrrell Hatton' }
   ];
 
-// Tournament logos mapping - Local images
-const tournamentLogos: Record<string, string> = {
-  [`masters-${new Date().getFullYear()}`]: '/images/logos/masters-logo.png',
-  'pga-championship-2025': '/images/logos/pga-championship-logo.png',
-  'us-open-2025': '/images/logos/us-open-logo.png',
-  'british-open-2025': '/images/logos/british-open-logo.png',
-};
+  // Tournament logos mapping - Local images
+  const tournamentLogos: Record<string, string> = {
+    [`masters-${new Date().getFullYear()}`]: '/images/logos/masters-logo.png',
+    [`pga-championship-${new Date().getFullYear()}`]: '/images/logos/pga-championship-logo.png',
+    [`us-open-${new Date().getFullYear()}`]: '/images/logos/us-open-logo.png',
+    [`open-championship-${new Date().getFullYear()}`]: '/images/logos/british-open-logo.png',
+  };
+
   // Load tournaments from database
   useEffect(() => {
     loadTournaments();
@@ -138,7 +139,7 @@ const tournamentLogos: Record<string, string> = {
       data?.forEach((tournament: any) => {
         tournamentMap[tournament.tournament_key] = {
           name: tournament.name,
-          logo: tournament.logo || tournamentLogos[tournament.tournament_key], // Add logo support
+          logo: tournament.logo || tournamentLogos[tournament.tournament_key],
           golfers: tournament.golfers || [],
           tiers: tournament.tiers || {
             tier1: [], tier2: [], tier3: [], tier4: [], tier5: [], tier6: []
@@ -158,16 +159,14 @@ const tournamentLogos: Record<string, string> = {
   const loadTournamentData = async (tournamentKey: string) => {
     setLoading(true);
     try {
-      // Load tournament details
       const { data: tournamentData, error: tournamentError } = await supabase
         .from('tournaments')
         .select('*')
         .eq('tournament_key', tournamentKey)
-                .order('updated_at', { ascending: false }).limit(1).single();
+        .order('updated_at', { ascending: false }).limit(1).single();
 
       if (tournamentError) throw tournamentError;
 
-      // Load players
       const { data: playersData, error: playersError } = await supabase
         .from('players')
         .select('*')
@@ -176,7 +175,6 @@ const tournamentLogos: Record<string, string> = {
 
       if (playersError) throw playersError;
 
-      // Load scores
       const { data: scoresData, error: scoresError } = await supabase
         .from('scores')
         .select('*')
@@ -184,24 +182,20 @@ const tournamentLogos: Record<string, string> = {
 
       if (scoresError) throw scoresError;
 
-      // Set the current par for this tournament
       const tournamentPar = tournamentData.par || 72;
       setCurrentPar(tournamentPar);
 
-      // Process scores into the format our app expects
       const scoresMap: Record<string, ScoreData> = {};
       scoresData?.forEach((score: any) => {
-        // Handle missed cut players
         if (!score.made_cut) {
-          // For missed cut, ensure rounds 3 and 4 are set to par + 8
           const rounds = [...(score.rounds || [null, null, null, null])];
           const penaltyScore = tournamentPar + 8;
-          rounds[2] = penaltyScore; // Round 3
-          rounds[3] = penaltyScore; // Round 4
+          rounds[2] = penaltyScore;
+          rounds[3] = penaltyScore;
           
           const totalScore = rounds.reduce((sum: number, round: number | null) => sum + (round || 0), 0);
           const actualRounds = rounds.filter((r: number | null) => r !== null).length;
-          const toPar = totalScore - (tournamentPar * 4); // Calculate against par for 4 rounds
+          const toPar = totalScore - (tournamentPar * 4);
           
           scoresMap[score.golfer_name] = {
             rounds: rounds,
@@ -213,7 +207,6 @@ const tournamentLogos: Record<string, string> = {
             currentRound: score.current_round || null
           };
         } else {
-          // For players who made the cut, calculate normally
           const rounds = score.rounds || [null, null, null, null];
           const validRounds = rounds.filter((r: any) => r !== null);
           const totalScore = validRounds.reduce((sum: number, round: number) => sum + round, 0);
@@ -223,42 +216,29 @@ const tournamentLogos: Record<string, string> = {
           let actualThru = null;
           let actualCurrentRound = null;
           
-          // Calculate toPar based on completed rounds only
           if (completedRounds > 0) {
             const par = tournamentPar * completedRounds;
             toPar = totalScore - par;
           }
           
-          // Only show "in progress" indicators if:
-          // 1. Player has fewer than 4 completed rounds
-          // 2. There's a valid thru value between 1-17 (not 18 = finished)
-          // 3. There's a current round score that looks reasonable (not a completed round score)
-          
           const hasValidThru = score.thru && score.thru > 0 && score.thru < 18;
           const hasCurrentRoundScore = score.current_round !== null && score.current_round !== undefined;
-          const currentRoundLooksInProgress = hasCurrentRoundScore && score.current_round >= -10 && score.current_round <= 10; // Reasonable "to par" range for partial round
-          
-          // Only show in-progress if all conditions are met AND it makes sense
+          const currentRoundLooksInProgress = hasCurrentRoundScore && score.current_round >= -10 && score.current_round <= 10;
           const shouldShowInProgress = completedRounds < 4 && hasValidThru && currentRoundLooksInProgress;
           
           if (shouldShowInProgress) {
-            // Player is genuinely mid-round - show the thru and current round indicators
             actualThru = score.thru;
             actualCurrentRound = score.current_round;
-            // Don't modify toPar - it should only reflect completed rounds
           }
           
-          // If current_round looks like a completed round score (60-90), add it to rounds
           if (hasCurrentRoundScore && !shouldShowInProgress && completedRounds < 4) {
             const currentRoundScore = score.current_round;
             if (currentRoundScore >= 60 && currentRoundScore <= 90) {
-              // This looks like a completed round score, add it to rounds
               rounds[completedRounds] = currentRoundScore;
               const newTotalScore = totalScore + currentRoundScore;
               const newCompletedRounds = completedRounds + 1;
               const newPar = tournamentPar * newCompletedRounds;
               toPar = newTotalScore - newPar;
-              
               console.log(`🔄 Added completed round for ${score.golfer_name}: ${currentRoundScore} (Round ${newCompletedRounds})`);
             }
           }
@@ -275,7 +255,6 @@ const tournamentLogos: Record<string, string> = {
         }
       });
 
-      // Remove duplicates from golfers list
       const uniqueGolfers = tournamentData.golfers ? 
         tournamentData.golfers.filter((golfer: Golfer, index: number, arr: Golfer[]) => 
           arr.findIndex((g: Golfer) => g.name === golfer.name) === index
@@ -283,7 +262,6 @@ const tournamentLogos: Record<string, string> = {
 
       console.log(`🔍 Loaded ${tournamentData.golfers?.length || 0} golfers, filtered to ${uniqueGolfers.length} unique golfers`);
 
-      // Set all the data
       setGolfers(uniqueGolfers);
       setTiers(tournamentData.tiers || {
         tier1: [], tier2: [], tier3: [], tier4: [], tier5: [], tier6: []
@@ -291,7 +269,6 @@ const tournamentLogos: Record<string, string> = {
       setPlayers(playersData || []);
       setCurrentScores(scoresMap);
 
-      // Load sample data if tournament is empty
       if (!uniqueGolfers || uniqueGolfers.length === 0) {
         const allGolfers = [...sampleGolfers];
         for (let i = 31; i <= 60; i++) {
@@ -313,7 +290,6 @@ const tournamentLogos: Record<string, string> = {
       return;
     }
 
-    // Use the passed par value if provided, otherwise use currentPar
     const parToSave = parValue !== undefined ? parValue : currentPar;
     
     console.log('Saving tournament data:', {
@@ -328,7 +304,7 @@ const tournamentLogos: Record<string, string> = {
       const dataToSave = {
         tournament_key: selectedTournament,
         name: tournaments[selectedTournament]?.name || 'Untitled Tournament',
-        logo: tournaments[selectedTournament]?.logo, // Add logo to save data
+        logo: tournaments[selectedTournament]?.logo,
         golfers,
         tiers,
         par: parToSave,
@@ -337,17 +313,14 @@ const tournamentLogos: Record<string, string> = {
 
       console.log('Data being sent to Supabase:', dataToSave);
 
-      // Try upsert first
       let { data, error } = await supabase
         .from('tournaments')
         .upsert(dataToSave)
         .select();
 
-      // If upsert fails, try update then insert approach
       if (error) {
         console.log('Upsert failed, trying update/insert approach:', error);
         
-        // Try to update first
         const { data: updateData, error: updateError } = await supabase
           .from('tournaments')
           .update(dataToSave)
@@ -357,7 +330,6 @@ const tournamentLogos: Record<string, string> = {
         if (updateError || !updateData || updateData.length === 0) {
           console.log('Update failed or no rows affected, trying insert:', updateError);
           
-          // If update fails, try insert
           const { data: insertData, error: insertError } = await supabase
             .from('tournaments')
             .insert(dataToSave)
@@ -377,7 +349,6 @@ const tournamentLogos: Record<string, string> = {
 
       console.log('Supabase response:', data);
       
-      // Update the local tournaments state with the new par value
       setTournaments(prev => ({
         ...prev,
         [selectedTournament]: {
@@ -395,7 +366,6 @@ const tournamentLogos: Record<string, string> = {
   };
 
   const organizeTiers = async (golferList: Golfer[]) => {
-    // Remove duplicates from golfer list
     const uniqueGolfers = golferList.filter((golfer: Golfer, index: number, arr: Golfer[]) => 
       arr.findIndex((g: Golfer) => g.name === golfer.name) === index
     );
@@ -443,10 +413,8 @@ const tournamentLogos: Record<string, string> = {
   // Sorting functions for scorecard
   const handleSort = (column: string) => {
     if (sortColumn === column) {
-      // Same column, toggle direction
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
     } else {
-      // New column, default to ascending
       setSortColumn(column);
       setSortDirection('asc');
     }
@@ -457,7 +425,7 @@ const tournamentLogos: Record<string, string> = {
       arr.findIndex((g: Golfer) => g.name === golfer.name) === index
     );
 
-    const columnToSort = sortColumn || 'toPar'; // Default to toPar if no sort column
+    const columnToSort = sortColumn || 'toPar';
 
     return [...uniqueGolfers].sort((a: Golfer, b: Golfer) => {
       let aValue: any;
@@ -504,13 +472,11 @@ const tournamentLogos: Record<string, string> = {
           return 0;
       }
 
-      // Handle string comparison
       if (typeof aValue === 'string' && typeof bValue === 'string') {
         const comparison = aValue.localeCompare(bValue);
         return sortDirection === 'asc' ? comparison : -comparison;
       }
 
-      // Handle numeric comparison
       if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
       if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
       return 0;
@@ -542,7 +508,6 @@ const tournamentLogos: Record<string, string> = {
 
   const addPlayer = async () => {
     if (newPlayer.name && Object.keys(newPlayer.picks).length === 6) {
-      // Check if this exact team already exists
       const teamExists = players.some((player: Player) => 
         JSON.stringify(player.picks) === JSON.stringify(newPlayer.picks)
       );
@@ -596,11 +561,10 @@ const tournamentLogos: Record<string, string> = {
       Object.entries(editingScores).forEach(([golferName, scoreData]: [string, any]) => {
         const rounds = scoreData.rounds?.map((r: number | null | string) => r === '' || r === null ? null : parseInt(r as string)) || [null, null, null, null];
         
-        // Ensure missed cut players have penalty scores
         if (scoreData.madeCut === false) {
           const penaltyScore = currentPar;
-          rounds[2] = penaltyScore; // Round 3
-          rounds[3] = penaltyScore; // Round 4
+          rounds[2] = penaltyScore;
+          rounds[3] = penaltyScore;
         }
 
         scoreUpdates.push({
@@ -620,7 +584,6 @@ const tournamentLogos: Record<string, string> = {
 
       if (error) throw error;
 
-      // Reload scores to reflect changes
       await loadTournamentData(selectedTournament);
       setEditingScores({});
     } catch (error) {
@@ -629,7 +592,6 @@ const tournamentLogos: Record<string, string> = {
     }
   };
 
-  // SlashGolfAPI Integration Functions
   const fetchTournamentSchedule = async (year: string = new Date().getFullYear().toString()) => {
     if (!apiKey) return null;
 
@@ -666,24 +628,19 @@ const tournamentLogos: Record<string, string> = {
     setApiError(null);
 
     try {
-      // Parse tournament API ID to get tournId and year
       let tournId: string;
       let year: string;
 
       if (tournamentApiId.includes('-')) {
-        // Format: "us-open-2025" or "006-2025"
         const [tournamentPart, yearPart] = tournamentApiId.split('-');
         year = yearPart || new Date().getFullYear().toString();
         
-        // If it's already a number, use it directly
         if (/^\d+$/.test(tournamentPart)) {
           tournId = tournamentPart;
         } else {
-          // Try to fetch schedule first to get real tournament IDs
           const schedule = await fetchTournamentSchedule(year);
           
           if (schedule?.schedule) {
-            // Search for tournament by name
             const tournament = schedule.schedule.find((t: any) => 
               t.name.toLowerCase().includes(tournamentPart.replace('-', ' '))
             );
@@ -692,7 +649,6 @@ const tournamentLogos: Record<string, string> = {
               tournId = tournament.tournId;
               console.log(`Found tournament: ${tournament.name} → ID: ${tournId}`);
             } else {
-              // Fallback mapping (these might be wrong!)
               const tournamentMap: Record<string, string> = {
                 'masters': '014',
                 'pga': '003',
@@ -701,7 +657,6 @@ const tournamentLogos: Record<string, string> = {
                 'open': '100'
               };
               
-              // Try partial matching
               const mapKey = Object.keys(tournamentMap).find((key: string) => 
                 tournamentPart.toLowerCase().includes(key)
               );
@@ -723,7 +678,6 @@ const tournamentLogos: Record<string, string> = {
       
       console.log('Final API call parameters:', { tournId, year, originalInput: tournamentApiId });
       
-      // RapidAPI endpoint for leaderboard
       const apiUrl = `https://live-golf-data.p.rapidapi.com/leaderboard?tournId=${tournId}&year=${year}&orgId=1`;
       
       console.log('API URL:', apiUrl);
@@ -762,7 +716,6 @@ const tournamentLogos: Record<string, string> = {
       const data = await response.json();
       console.log('SlashGolf API Response:', data);
 
-      // Process the API response and update scores
       await processApiScores(data);
       
       setApiStatus('success');
@@ -787,9 +740,8 @@ const tournamentLogos: Record<string, string> = {
     });
 
     const scoreUpdates: any[] = [];
-    const processedGolfers = new Set<string>(); // Track already processed golfers
+    const processedGolfers = new Set<string>();
     
-    // Helper function to extract numbers from MongoDB-like format
     const extractNumber = (value: any): number | null => {
       if (value === null || value === undefined) return null;
       if (typeof value === 'number') return value;
@@ -797,7 +749,6 @@ const tournamentLogos: Record<string, string> = {
         const parsed = parseInt(value);
         return isNaN(parsed) ? null : parsed;
       }
-      // Handle MongoDB format: {"$numberInt":"72"}
       if (typeof value === 'object' && value.$numberInt) {
         const parsed = parseInt(value.$numberInt);
         return isNaN(parsed) ? null : parsed;
@@ -805,13 +756,11 @@ const tournamentLogos: Record<string, string> = {
       return null;
     };
     
-    // SlashGolf API response structure: { leaderboardRows: [...] }
     const leaderboardRows = apiData.leaderboardRows || [];
     const unmatchedApiPlayers: string[] = [];
     
     console.log('Processing', leaderboardRows.length, 'players from API');
     
-    // Log first few players for debugging
     console.log('🎯 First 3 API players for verification:');
     leaderboardRows.slice(0, 3).forEach((player: any, index: number) => {
       console.log(`${index + 1}. ${player.firstName} ${player.lastName}:`, {
@@ -825,23 +774,20 @@ const tournamentLogos: Record<string, string> = {
     });
     
     leaderboardRows.forEach((player: any) => {
-      // Construct full name for matching
       const fullName = `${player.firstName} ${player.lastName}`.trim();
       const golferName = findMatchingGolfer(fullName);
       
       if (golferName && !processedGolfers.has(golferName)) {
-        // Mark this golfer as processed to avoid duplicates
         processedGolfers.add(golferName);
         
         console.log('Matched player:', fullName, '→', golferName);
         
-        // Extract round scores from the rounds array
         const rounds: (number | null)[] = [null, null, null, null];
         if (player.rounds && Array.isArray(player.rounds)) {
           player.rounds.forEach((round: any) => {
             const roundId = extractNumber(round.roundId || 1);
             if (roundId !== null) {
-              const roundIndex = roundId - 1; // Convert to 0-based index
+              const roundIndex = roundId - 1;
               if (roundIndex >= 0 && roundIndex < 4) {
                 rounds[roundIndex] = extractNumber(round.strokes);
               }
@@ -849,22 +795,18 @@ const tournamentLogos: Record<string, string> = {
           });
         }
 
-        // Determine if player made the cut
         const madeCut = player.status !== 'cut' && player.status !== 'wd' && player.status !== 'dq';
         
-        // Apply missed cut penalty if needed
         if (!madeCut) {
           const penaltyScore = currentPar;
           rounds[2] = rounds[2] || penaltyScore;
           rounds[3] = rounds[3] || penaltyScore;
         }
 
-        // Extract current round progress - handle MongoDB format
         const currentHole = extractNumber(player.currentHole);
         const thru = currentHole && !player.roundComplete ? currentHole : null;
         const currentRoundScore = extractNumber(player.currentRoundScore);
 
-        // Log detailed score info for debugging
         console.log(`📊 Score details for ${golferName}:`, {
           apiToPar: player.toPar,
           rounds: rounds,
@@ -879,7 +821,6 @@ const tournamentLogos: Record<string, string> = {
           golfer_name: golferName,
           rounds,
           made_cut: madeCut,
-          // Only include thru and current_round if they have valid non-null values
           ...(thru !== null && { thru }),
           ...(currentRoundScore !== null && { current_round: currentRoundScore }),
           updated_at: new Date().toISOString()
@@ -893,7 +834,6 @@ const tournamentLogos: Record<string, string> = {
       }
     });
 
-    // Show confirmation dialog before updating scores
     if (scoreUpdates.length > 0) {
       const sampleUpdates = scoreUpdates.slice(0, 3);
       console.log('🚨 ABOUT TO UPDATE SCORES - Sample data:');
@@ -928,12 +868,10 @@ const tournamentLogos: Record<string, string> = {
         throw new Error(`Database error: ${error.message}`);
       }
 
-      // Reload tournament data to show updated scores
       await loadTournamentData(selectedTournament);
       
       console.log(`✓ Successfully updated scores for ${scoreUpdates.length} golfers`);
       
-      // Report on unmatched golfers
       const tournamentGolfers = golfers.map((g: Golfer) => g.name);
       const updatedGolfers = scoreUpdates.map((s: any) => s.golfer_name);
       const unmatchedInTournament = tournamentGolfers.filter((name: string) => !updatedGolfers.includes(name));
@@ -941,7 +879,6 @@ const tournamentLogos: Record<string, string> = {
       if (unmatchedInTournament.length > 0) {
         console.log(`⚠️ ${unmatchedInTournament.length} golfers in your tournament didn't get API updates:`);
         unmatchedInTournament.forEach((name: string) => console.log(`   - ${name}`));
-        console.log('These golfers may not be playing in this tournament or have different names in the API.');
       }
       
       if (unmatchedApiPlayers.length > 0) {
@@ -959,14 +896,11 @@ const tournamentLogos: Record<string, string> = {
   const findMatchingGolfer = (apiPlayerName: string): string | null => {
     if (!apiPlayerName) return null;
     
-    // Normalize function to handle special characters and formatting
     const normalizeString = (str: string): string => {
       return str
         .toLowerCase()
         .trim()
-        // Remove common suffixes
         .replace(/\b(jr\.?|sr\.?|iii?|iv|r\.?)\b/g, '')
-        // Normalize special characters
         .replace(/[àáâãäå]/g, 'a')
         .replace(/[èéêë]/g, 'e')
         .replace(/[ìíîï]/g, 'i')
@@ -976,7 +910,6 @@ const tournamentLogos: Record<string, string> = {
         .replace(/[ñ]/g, 'n')
         .replace(/[ç]/g, 'c')
         .replace(/[ß]/g, 'ss')
-        // Remove extra whitespace
         .replace(/\s+/g, ' ')
         .trim();
     };
@@ -984,7 +917,6 @@ const tournamentLogos: Record<string, string> = {
     const normalizedApiName = normalizeString(apiPlayerName);
     console.log(`Trying to match: "${apiPlayerName}" → normalized: "${normalizedApiName}"`);
     
-    // Special cases for problematic names
     const specialMatches: Record<string, string> = {
       'jordan smith': 'Jordan L. Smith',
       'jordan l smith': 'Jordan L. Smith', 
@@ -1003,7 +935,6 @@ const tournamentLogos: Record<string, string> = {
       }
     }
     
-    // Try exact match first
     const exactMatch = golfers.find(g => 
       normalizeString(g.name) === normalizedApiName
     );
@@ -1015,7 +946,6 @@ const tournamentLogos: Record<string, string> = {
     const apiParts = normalizedApiName.split(' ').filter(p => p.length > 1);
     const apiLastName = apiParts[apiParts.length - 1];
     
-    // Try first + last name combination (more specific than just last name)
     if (apiParts.length >= 2) {
       const apiFirstName = apiParts[0];
       const firstLastMatches = golfers.filter((g: Golfer) => {
@@ -1033,12 +963,10 @@ const tournamentLogos: Record<string, string> = {
         return firstLastMatches[0].name;
       } else if (firstLastMatches.length > 1) {
         console.log(`⚠️ Multiple first+last matches for "${apiPlayerName}":`, firstLastMatches.map(g => g.name));
-        // Don't return any match if multiple found to avoid confusion
         return null;
       }
     }
     
-    // Try last name match ONLY if there's exactly one match (to avoid Cameron/Jordan Smith confusion)
     if (apiLastName && apiLastName.length > 2) {
       const lastNameMatches = golfers.filter((g: Golfer) => {
         const golferParts = normalizeString(g.name).split(' ').filter(p => p.length > 1);
@@ -1051,15 +979,12 @@ const tournamentLogos: Record<string, string> = {
         return lastNameMatches[0].name;
       } else if (lastNameMatches.length > 1) {
         console.log(`⚠️ Multiple last name matches for "${apiPlayerName}":`, lastNameMatches.map(g => g.name));
-        // Don't return any match if multiple found to avoid confusion
         return null;
       }
     }
     
-    // Try partial name match (contains) - but be careful
     const partialMatch = golfers.find((g: Golfer) => {
       const golferNormalized = normalizeString(g.name);
-      // Check if significant parts of the names overlap
       const commonWords = apiParts.filter(part => 
         part.length > 2 && golferNormalized.includes(part)
       );
@@ -1071,7 +996,6 @@ const tournamentLogos: Record<string, string> = {
       return partialMatch.name;
     }
     
-    // Try reversed name order (for Asian names, etc.)
     if (apiParts.length >= 2) {
       const reversedName = `${apiLastName} ${apiParts[0]}`;
       const reversedMatch = golfers.find((g: Golfer) => 
@@ -1086,7 +1010,6 @@ const tournamentLogos: Record<string, string> = {
     
     console.log(`✗ No match found for: "${apiPlayerName}" (normalized: "${normalizedApiName}")`);
     
-    // Log available similar names for debugging
     const similarNames = golfers.filter((g: Golfer) => {
       const golferNormalized = normalizeString(g.name);
       return apiParts.some(part => part.length > 2 && golferNormalized.includes(part));
@@ -1107,7 +1030,6 @@ const tournamentLogos: Record<string, string> = {
     }
   };
 
-  // Load API key on component mount
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const savedKey = localStorage.getItem('slashgolf_api_key');
@@ -1121,7 +1043,6 @@ const tournamentLogos: Record<string, string> = {
     }
   }, []);
 
-  // ... (rest of the helper functions remain the same)
   // ── Year Rollover ──────────────────────────────────────────────────────
   const seedNewYearTournaments = async (year: number) => {
     const newT = [
@@ -1256,14 +1177,13 @@ const tournamentLogos: Record<string, string> = {
         
         let toPar = score.toPar;
         
-        // Only special handling for missed cut - use penalty scoring
         if (!score.madeCut) {
           const rounds = [...score.rounds];
           const penaltyScore = currentPar;
-          rounds[2] = penaltyScore; // Round 3 penalty
-          rounds[3] = penaltyScore; // Round 4 penalty
+          rounds[2] = penaltyScore;
+          rounds[3] = penaltyScore;
           const totalScore = rounds.reduce((sum: number, round: number | null) => sum + (round || 0), 0);
-          toPar = totalScore - (currentPar * 4); // Calculate against 4 rounds
+          toPar = totalScore - (currentPar * 4);
         }
         
         return {
@@ -1346,7 +1266,8 @@ const tournamentLogos: Record<string, string> = {
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
             <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
               <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 flex items-center gap-2">
-                <Trophy className="text-yellow-500" />
+                {/* ✅ CHANGE 1: Tiger logo in header */}
+                <img src="/images/logos/Tiger.png" alt="Golf Pool" className="w-9 h-9 object-contain" />
                 <span className="hidden sm:inline">Golf Major Pool Manager</span>
                 <span className="sm:hidden">Golf Pool</span>
               </h1>
@@ -1406,19 +1327,20 @@ const tournamentLogos: Record<string, string> = {
           {!selectedTournament && (
             <div className="max-w-4xl mx-auto px-2 sm:px-0">
               <div className="text-center mb-6 sm:mb-8">
-                <Trophy className="mx-auto text-yellow-500 mb-4" size={48} />
+                {/* ✅ CHANGE 2: Tiger logo on welcome screen */}
+                <img src="/images/logos/Tiger.png" alt="Golf Pool" className="mx-auto w-20 h-20 object-contain mb-4" />
                 <h2 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-2">Welcome to Golf Major Pool</h2>
                 <p className="text-base sm:text-lg text-gray-600">Choose a tournament to view or manage</p>
               </div>
               
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-                                  {Object.entries(tournaments).map(([key, tournament]: [string, TournamentData]) => (
+                {Object.entries(tournaments).map(([key, tournament]: [string, TournamentData]) => (
                   <div 
                     key={key}
                     onClick={() => setSelectedTournament(key)}
                     className="bg-white border-2 border-gray-200 rounded-lg p-4 sm:p-6 hover:border-blue-500 hover:shadow-lg transition-all cursor-pointer group active:scale-95"
                   >
-                    {/* Tournament Logo and Header */}
+                    {/* ✅ CHANGE 3: Tournament card logos - clean, no duplicate fallback */}
                     <div className="flex items-center justify-between mb-3 sm:mb-4">
                       <div className="flex items-center gap-3">
                         {tournament.logo ? (
@@ -1426,16 +1348,10 @@ const tournamentLogos: Record<string, string> = {
                             src={tournament.logo} 
                             alt={`${tournament.name} logo`}
                             className="w-12 h-12 object-contain flex-shrink-0"
-                            onError={(e) => {
-                              // Fallback to trophy icon if logo fails to load
-                              e.currentTarget.style.display = 'none';
-                              e.currentTarget.parentElement?.querySelector('.fallback-icon')?.classList.remove('hidden');
-                            }}
                           />
                         ) : (
                           <Trophy className="text-yellow-500 flex-shrink-0" size={24} />
                         )}
-                        <Trophy className="text-yellow-500 group-hover:text-yellow-600 flex-shrink-0 hidden fallback-icon" size={24} />
                         <h3 className="text-lg sm:text-xl font-semibold text-gray-800 group-hover:text-blue-600 leading-tight">
                           {tournament.name}
                         </h3>
@@ -1474,7 +1390,7 @@ const tournamentLogos: Record<string, string> = {
 
           {selectedTournament && (
             <>
-              {/* Tournament Info Bar with Logo */}
+              {/* ✅ CHANGE 4: Tournament info bar logo - clean, no duplicate fallback */}
               <div className="bg-blue-50 p-3 sm:p-4 rounded-lg mb-4 sm:mb-6">
                 <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
                   <div className="flex items-center gap-3">
@@ -1483,15 +1399,10 @@ const tournamentLogos: Record<string, string> = {
                         src={tournaments[selectedTournament].logo} 
                         alt={`${tournaments[selectedTournament].name} logo`}
                         className="w-10 h-10 object-contain flex-shrink-0"
-                        onError={(e) => {
-                          e.currentTarget.style.display = 'none';
-                          e.currentTarget.parentElement?.querySelector('.fallback-icon')?.classList.remove('hidden');
-                        }}
                       />
                     ) : (
                       <Trophy className="text-blue-600 flex-shrink-0" size={24} />
                     )}
-                    <Trophy className="text-blue-600 flex-shrink-0 hidden fallback-icon" size={24} />
                     <div>
                       <h2 className="text-base sm:text-lg font-semibold text-blue-800">
                         {tournaments[selectedTournament]?.name}
@@ -1644,8 +1555,8 @@ const tournamentLogos: Record<string, string> = {
                 ))}
               </div>
 
-             {/* Setup Tab */}
-             {activeTab === 'setup' && isAdminMode && (
+              {/* Setup Tab */}
+              {activeTab === 'setup' && isAdminMode && (
                 <div className="space-y-4 sm:space-y-6">
                   <div className="bg-blue-50 p-3 sm:p-4 rounded-lg">
                     <h3 className="font-semibold mb-2 text-blue-800 text-sm sm:text-base">Upload Golfers</h3>
@@ -1681,10 +1592,7 @@ const tournamentLogos: Record<string, string> = {
                         value={currentPar}
                         onChange={async (e) => {
                           const newPar = parseInt(e.target.value) || 72;
-                          console.log('Par changing from', currentPar, 'to', newPar);
                           setCurrentPar(newPar);
-                          // Auto-save when par changes, passing the new value directly
-                          console.log('Calling saveTournamentData with par:', newPar);
                           await saveTournamentData(newPar);
                         }}
                         min="68"
@@ -1790,7 +1698,6 @@ const tournamentLogos: Record<string, string> = {
               {/* Players Tab */}
               {activeTab === 'players' && (
                 <div className="space-y-4 sm:space-y-6">
-                  {/* Add New Player - Admin Only */}
                   {isAdminMode && (
                     <div className="bg-green-50 p-3 sm:p-4 rounded-lg">
                       <h3 className="font-semibold mb-3 sm:mb-4 text-green-800 text-sm sm:text-base">Add New Player</h3>
@@ -1833,11 +1740,9 @@ const tournamentLogos: Record<string, string> = {
                     </div>
                   )}
 
-                  {/* Current Players */}
                   <div className="space-y-3">
                     <h3 className="font-semibold text-gray-800">Current Players ({players.length})</h3>
                     {players.map(player => {
-                      // Calculate player's current performance
                       const playerScores = Object.values(player.picks).map((golferName: string) => {
                         const score = currentScores[golferName];
                         if (!score) return { name: golferName, toPar: null, status: 'No score' };
@@ -1870,7 +1775,6 @@ const tournamentLogos: Record<string, string> = {
 
                       return (
                         <div key={player.id} className="bg-white border rounded-lg p-4 shadow-sm">
-                          {/* Player Header */}
                           <div className="flex justify-between items-center mb-3">
                             <div className="flex flex-col sm:flex-row sm:items-center sm:gap-3">
                               <h4 className="font-semibold text-lg">{player.name}</h4>
@@ -1894,7 +1798,6 @@ const tournamentLogos: Record<string, string> = {
                             )}
                           </div>
                           
-                          {/* Mobile: Stack view, Desktop: Grid view */}
                           <div className="space-y-2 sm:space-y-0 sm:grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 sm:gap-2">
                             {Object.entries(player.picks).map(([tier, golfer]: [string, string], index: number) => {
                               const golferScore = playerScores.find((g: any) => g.name === golfer);
@@ -1906,7 +1809,6 @@ const tournamentLogos: Record<string, string> = {
                                     ? 'bg-blue-50 border-blue-200 ring-1 ring-blue-300' 
                                     : 'bg-gray-50 border-gray-200'
                                 }`}>
-                                  {/* Mobile: Horizontal layout */}
                                   <div className="flex justify-between items-center sm:flex-col sm:items-start">
                                     <div className="flex-1 sm:w-full">
                                       <div className="flex items-center gap-2 mb-1 sm:mb-2">
@@ -1924,7 +1826,6 @@ const tournamentLogos: Record<string, string> = {
                                       </div>
                                     </div>
                                     
-                                    {/* Score section */}
                                     <div className="flex flex-col items-end sm:items-start sm:w-full">
                                       {golferScore && (
                                         <>
@@ -1992,7 +1893,6 @@ const tournamentLogos: Record<string, string> = {
                       )}
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      {/* API Controls - Admin Only */}
                       {isAdminMode && (
                         <>
                           <button
@@ -2048,7 +1948,6 @@ const tournamentLogos: Record<string, string> = {
                         </>
                       )}
 
-                      {/* Admin Edit Controls */}
                       {isAdminMode && (
                         <>
                           <button
@@ -2117,30 +2016,14 @@ const tournamentLogos: Record<string, string> = {
                             <SortableHeader column="name" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 bg-gray-50 z-10 cursor-pointer hover:bg-gray-100">
                               Golfer
                             </SortableHeader>
-                            <SortableHeader column="toPar">
-                              To Par
-                            </SortableHeader>
-                            <SortableHeader column="thru">
-                              Thru
-                            </SortableHeader>
-                            <SortableHeader column="current">
-                              Current
-                            </SortableHeader>
-                            <SortableHeader column="r1">
-                              R1
-                            </SortableHeader>
-                            <SortableHeader column="r2">
-                              R2
-                            </SortableHeader>
-                            <SortableHeader column="r3">
-                              R3
-                            </SortableHeader>
-                            <SortableHeader column="r4">
-                              R4
-                            </SortableHeader>
-                            <SortableHeader column="madeCut">
-                              Made Cut
-                            </SortableHeader>
+                            <SortableHeader column="toPar">To Par</SortableHeader>
+                            <SortableHeader column="thru">Thru</SortableHeader>
+                            <SortableHeader column="current">Current</SortableHeader>
+                            <SortableHeader column="r1">R1</SortableHeader>
+                            <SortableHeader column="r2">R2</SortableHeader>
+                            <SortableHeader column="r3">R3</SortableHeader>
+                            <SortableHeader column="r4">R4</SortableHeader>
+                            <SortableHeader column="madeCut">Made Cut</SortableHeader>
                           </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
@@ -2155,16 +2038,14 @@ const tournamentLogos: Record<string, string> = {
                             };
                             const isSelected = getSelectedGolfers().includes(golfer.name);
                             
-                            // Use editing data if available, otherwise use current scores
                             const displayData = isEditing ? {
                               rounds: editing.rounds.map((r: number | null | string) => r === '' || r === null ? null : parseInt(r as string)),
                               madeCut: editing.madeCut,
-                              toPar: 0, // Will calculate below
+                              toPar: 0,
                               thru: score?.thru || null,
                               currentRound: score?.currentRound || null
                             } : score;
 
-                            // Calculate to par for editing mode
                             if (isEditing && displayData) {
                               const validRounds = displayData.rounds.filter((r: number | null) => r !== null);
                               const total = validRounds.reduce((sum: number, round) => sum + (round || 0), 0);
@@ -2185,7 +2066,6 @@ const tournamentLogos: Record<string, string> = {
                                   </div>
                                 </td>
                                 
-                                {/* To Par */}
                                 <td className="px-2 py-4 whitespace-nowrap text-center">
                                   {displayData ? (
                                     <span className={`font-bold ${
@@ -2199,17 +2079,14 @@ const tournamentLogos: Record<string, string> = {
                                   )}
                                 </td>
 
-                                {/* Thru */}
                                 <td className="px-2 py-4 whitespace-nowrap text-center text-sm">
                                   {displayData?.thru ? `${displayData.thru}/18` : '-'}
                                 </td>
 
-                                {/* Current Round */}
                                 <td className="px-2 py-4 whitespace-nowrap text-center text-sm">
                                   {displayData?.currentRound || '-'}
                                 </td>
 
-                                {/* Round Scores */}
                                 {[0, 1, 2, 3].map(roundIndex => {
                                   const roundScore = isEditing ? editing.rounds[roundIndex] : displayData?.rounds[roundIndex];
                                   const isMissedCutRound = !displayData?.madeCut && roundIndex >= 2;
@@ -2247,7 +2124,6 @@ const tournamentLogos: Record<string, string> = {
                                   );
                                 })}
 
-                                {/* Made Cut */}
                                 <td className="px-2 py-4 whitespace-nowrap text-center">
                                   {isEditing && isAdminMode ? (
                                     <input
@@ -2343,21 +2219,11 @@ const tournamentLogos: Record<string, string> = {
                         <table className="w-full bg-white text-gray-900">
                           <thead className="bg-gray-50">
                             <tr>
-                              <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Rank
-                              </th>
-                              <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Player
-                              </th>
-                              <th className="px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Score
-                              </th>
-                              <th className="px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">
-                                Best 4 Golfers
-                              </th>
-                              <th className="px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Low
-                              </th>
+                              <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rank</th>
+                              <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Player</th>
+                              <th className="px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Score</th>
+                              <th className="px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">Best 4 Golfers</th>
+                              <th className="px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Low</th>
                             </tr>
                           </thead>
                           <tbody className="bg-white divide-y divide-gray-200">
