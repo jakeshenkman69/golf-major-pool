@@ -598,7 +598,7 @@ const tournamentLogos: Record<string, string> = {
         
         // Ensure missed cut players have penalty scores
         if (scoreData.madeCut === false) {
-          const penaltyScore = currentPar + 8;
+          const penaltyScore = currentPar;
           rounds[2] = penaltyScore; // Round 3
           rounds[3] = penaltyScore; // Round 4
         }
@@ -854,7 +854,7 @@ const tournamentLogos: Record<string, string> = {
         
         // Apply missed cut penalty if needed
         if (!madeCut) {
-          const penaltyScore = currentPar + 8;
+          const penaltyScore = currentPar;
           rounds[2] = rounds[2] || penaltyScore;
           rounds[3] = rounds[3] || penaltyScore;
         }
@@ -1259,7 +1259,7 @@ const tournamentLogos: Record<string, string> = {
         // Only special handling for missed cut - use penalty scoring
         if (!score.madeCut) {
           const rounds = [...score.rounds];
-          const penaltyScore = currentPar + 8;
+          const penaltyScore = currentPar;
           rounds[2] = penaltyScore; // Round 3 penalty
           rounds[3] = penaltyScore; // Round 4 penalty
           const totalScore = rounds.reduce((sum: number, round: number | null) => sum + (round || 0), 0);
@@ -1692,7 +1692,7 @@ const tournamentLogos: Record<string, string> = {
                         className="w-20 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-500 text-center text-gray-900 bg-white"
                       />
                       <span className="text-sm text-yellow-600">
-                        (Missed cut penalty: {currentPar + 8} per round)
+                        (Missed cut penalty: {currentPar} per round)
                       </span>
                     </div>
                     <div className="mt-3 p-2 sm:p-3 bg-yellow-100 border border-yellow-200 rounded">
@@ -1844,7 +1844,7 @@ const tournamentLogos: Record<string, string> = {
                         
                         if (!score.madeCut) {
                           const rounds = [...score.rounds];
-                          const penaltyScore = currentPar + 8;
+                          const penaltyScore = currentPar;
                           rounds[2] = penaltyScore;
                           rounds[3] = penaltyScore;
                           const cutScore = rounds.reduce((sum: number, round: number | null) => sum + (round || 0), 0);
@@ -2257,8 +2257,8 @@ const tournamentLogos: Record<string, string> = {
                                         updateGolferScore(golfer.name, 'madeCut', e.target.checked);
                                         if (!e.target.checked) {
                                           const newRounds = [...editing.rounds];
-                                          newRounds[2] = currentPar + 8;
-                                          newRounds[3] = currentPar + 8;
+                                          newRounds[2] = currentPar;
+                                          newRounds[3] = currentPar;
                                           updateGolferScore(golfer.name, 'rounds', newRounds);
                                         }
                                       }}
