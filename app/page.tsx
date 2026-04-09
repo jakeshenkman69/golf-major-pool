@@ -2149,7 +2149,7 @@ const GolfMajorPool = () => {
                                       {displayData?.madeCut !== false ? 'Made' : 'Missed'}
                                     </span>
                                   )}
-                                </td>
+                                </td> 
                               </tr>
                             );
                           })}
