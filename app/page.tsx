@@ -634,8 +634,10 @@ const GolfMajorPool = () => {
       let year: string;
 
       if (tournamentApiId.includes('-')) {
-        const [tournamentPart, yearPart] = tournamentApiId.split('-');
-        year = yearPart || new Date().getFullYear().toString();
+        const parts = tournamentApiId.split('-');
+        const yearPart = parts[parts.length - 1];
+        const tournamentPart = parts.slice(0, -1).join('-');
+        year = /^\d{4}$/.test(yearPart) ? yearPart : new Date().getFullYear().toString();
         
         if (/^\d+$/.test(tournamentPart)) {
           tournId = tournamentPart;
@@ -644,7 +646,7 @@ const GolfMajorPool = () => {
           
           if (schedule?.schedule) {
             const tournament = schedule.schedule.find((t: any) => 
-              t.name.toLowerCase().includes(tournamentPart.replace('-', ' '))
+              t.name.toLowerCase().includes(tournamentPart.replace(/-/g, ' '))
             );
             
             if (tournament) {
@@ -653,17 +655,15 @@ const GolfMajorPool = () => {
             } else {
               const tournamentMap: Record<string, string> = {
                 'masters': '014',
-                'pga': '003',
-                'us': '006', 
-                'british': '100',
-                'open': '100'
+                'pga-championship': '003',
+                'us-open': '006',
+                'open-championship': '100',
+                'british-open': '100'
               };
               
-              const mapKey = Object.keys(tournamentMap).find((key: string) => 
-                tournamentPart.toLowerCase().includes(key)
-              );
+              const mapKey = tournamentPart.toLowerCase();
               
-              if (mapKey) {
+              if (tournamentMap[mapKey]) {
                 tournId = tournamentMap[mapKey];
                 console.log(`Using fallback mapping: ${tournamentPart} → ${tournId}`);
               } else {
