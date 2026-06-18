@@ -148,10 +148,10 @@ const resolveMajorTournament = (tournamentPart: string): MajorConfig | null => {
   return null;
 };
 
-// Given the SlashGolf schedule and a resolved major, find the matching tournId.
-// Prefers an exact normalized-name match, then a precise substring match, so we
-// never latch onto an unrelated event (e.g. a regular Tour "Open").
-const findTournIdInSchedule = (schedule: any, major: MajorConfig): string | null => {
+// Given the SlashGolf schedule and a resolved major, find the matching schedule
+// row. Prefers an exact normalized-name match, then a precise substring match,
+// so we never latch onto an unrelated event (e.g. a regular Tour "Open").
+const findMajorScheduleRow = (schedule: any, major: MajorConfig): any | null => {
   const rows: any[] = schedule?.schedule || [];
   if (rows.length === 0) return null;
 
@@ -160,13 +160,11 @@ const findTournIdInSchedule = (schedule: any, major: MajorConfig): string | null
     return major.namePatterns.some((p) => (exactOnly ? n === p : n.includes(p)));
   };
 
-  const exact = rows.find((t: any) => matchesPattern(t.name, true));
-  if (exact?.tournId) return exact.tournId;
-
-  const partial = rows.find((t: any) => matchesPattern(t.name, false));
-  if (partial?.tournId) return partial.tournId;
-
-  return null;
+  return (
+    rows.find((t: any) => t.tournId && matchesPattern(t.name, true)) ||
+    rows.find((t: any) => t.tournId && matchesPattern(t.name, false)) ||
+    null
+  );
 };
 
 const GolfMajorPool = () => {
@@ -199,6 +197,10 @@ const GolfMajorPool = () => {
   const [lastFetchTime, setLastFetchTime] = useState<string | null>(null);
   const [apiError, setApiError] = useState<string | null>(null);
   const [showApiConfig, setShowApiConfig] = useState<boolean>(false);
+  // Auto-discovered tournament options (the names the API allows), keyed by major.
+  type ScheduleOption = { key: string; label: string; tournId: string; year: string; live: boolean };
+  const [scheduleOptions, setScheduleOptions] = useState<ScheduleOption[]>([]);
+  const [scheduleLoading, setScheduleLoading] = useState<boolean>(false);
 
   // Sample data for new tournaments
   const sampleGolfers: Golfer[] = [
@@ -736,10 +738,66 @@ const GolfMajorPool = () => {
     return null;
   };
 
+  // Resolve a "tournament-year" identifier (e.g. "us-open-2026" or "026-2026")
+  // into the { tournId, year } the SlashGolf leaderboard endpoint needs.
+  // The year is taken straight from the identifier, so it updates automatically
+  // as the selected tournament rolls over to a new season.
+  const resolveTournamentTarget = async (
+    identifier: string
+  ): Promise<{ tournId: string; year: string }> => {
+    if (!identifier || !identifier.includes('-')) {
+      throw new Error(
+        `Invalid tournament "${identifier}". Expected "tournament-year" (e.g. "us-open-2026").`
+      );
+    }
+
+    const parts = identifier.split('-');
+    const yearPart = parts[parts.length - 1];
+    const tournamentPart = parts.slice(0, -1).join('-');
+    const year = /^\d{4}$/.test(yearPart)
+      ? yearPart
+      : new Date().getFullYear().toString();
+
+    // Numeric tournId provided directly.
+    if (/^\d+$/.test(tournamentPart)) {
+      return { tournId: tournamentPart, year };
+    }
+
+    // Resolve the name (e.g. "us-open", "us-openchampionship") to a known major
+    // so we never silently pull the wrong tournament.
+    const major = resolveMajorTournament(tournamentPart);
+    if (!major) {
+      const valid = MAJOR_TOURNAMENTS.map((m) => `${m.aliases[0]}-${year}`).join(', ');
+      throw new Error(
+        `Unrecognized tournament "${tournamentPart}". ` +
+        `Use one of: ${valid} — or a numeric ID like "026-${year}".`
+      );
+    }
+
+    // Look the major up in the live schedule for that year (authoritative),
+    // falling back to its canonical tournId if the schedule isn't available.
+    const schedule = await fetchTournamentSchedule(year);
+    const row = schedule ? findMajorScheduleRow(schedule, major) : null;
+    const tournId = row?.tournId || major.fallbackTournId;
+    console.log(
+      `Resolved "${tournamentPart}" → ${major.label} (${year}) → tournId ${tournId}` +
+      (row ? ' [from schedule]' : ' [canonical fallback]')
+    );
+    return { tournId, year };
+  };
+
   const fetchLiveScores = async () => {
-    if (!apiKey || !tournamentApiId) {
-      alert('Please configure your SlashGolf API key and Tournament ID first');
+    // Auto-configure: prefer an explicit override, otherwise use the tournament
+    // already selected in the pool (which carries both the major and the year).
+    const identifier = (tournamentApiId && tournamentApiId.trim()) || selectedTournament;
+
+    if (!apiKey) {
+      alert('Please add your SlashGolf RapidAPI key first.');
       setShowApiConfig(true);
+      return;
+    }
+    if (!identifier) {
+      alert('Select a tournament first, then fetch live scores.');
       return;
     }
 
@@ -747,55 +805,10 @@ const GolfMajorPool = () => {
     setApiError(null);
 
     try {
-      let tournId: string;
-      let year: string;
+      const { tournId, year } = await resolveTournamentTarget(identifier);
 
-      if (tournamentApiId.includes('-')) {
-        const parts = tournamentApiId.split('-');
-        const yearPart = parts[parts.length - 1];
-        const tournamentPart = parts.slice(0, -1).join('-');
-        year = /^\d{4}$/.test(yearPart) ? yearPart : new Date().getFullYear().toString();
-        
-        if (/^\d+$/.test(tournamentPart)) {
-          tournId = tournamentPart;
-        } else {
-          // Resolve the typed name (e.g. "us-open", "us-openchampionship") to a
-          // known major so we never silently pull the wrong tournament.
-          const major = resolveMajorTournament(tournamentPart);
+      console.log('Final API call parameters:', { tournId, year, identifier });
 
-          if (!major) {
-            const valid = MAJOR_TOURNAMENTS
-              .map((m) => `${m.aliases[0]}-${year}`)
-              .join(', ');
-            throw new Error(
-              `Unrecognized tournament "${tournamentPart}". ` +
-              `Use one of: ${valid} — or a numeric ID like "026-${year}".`
-            );
-          }
-
-          console.log(`Resolved "${tournamentPart}" → ${major.label} (${major.key})`);
-
-          const schedule = await fetchTournamentSchedule(year);
-          const scheduleTournId = schedule ? findTournIdInSchedule(schedule, major) : null;
-
-          if (scheduleTournId) {
-            tournId = scheduleTournId;
-            console.log(`Found ${major.label} in ${year} schedule → ID: ${tournId}`);
-          } else {
-            // Schedule unavailable or major not listed yet — use the canonical ID.
-            tournId = major.fallbackTournId;
-            console.log(
-              `${major.label} not found in ${year} schedule; ` +
-              `using canonical tournId: ${tournId}`
-            );
-          }
-        }
-      } else {
-        throw new Error(`Invalid format. Use "tournament-year" (e.g., "us-open-2025") or "tournId-year" (e.g., "006-2025")`);
-      }
-      
-      console.log('Final API call parameters:', { tournId, year, originalInput: tournamentApiId });
-      
       const apiUrl = `https://live-golf-data.p.rapidapi.com/leaderboard?tournId=${tournId}&year=${year}&orgId=1`;
       
       console.log('API URL:', apiUrl);
@@ -1160,6 +1173,58 @@ const GolfMajorPool = () => {
       }
     }
   }, []);
+
+  // The year used for auto-configuration: derived from the selected tournament
+  // (e.g. "us-open-2026" → "2026"), otherwise the current calendar year.
+  const activeYear = (() => {
+    const suffix = selectedTournament?.split('-').pop();
+    return suffix && /^\d{4}$/.test(suffix)
+      ? suffix
+      : new Date().getFullYear().toString();
+  })();
+
+  // Pull the tournament names the API allows for `year` and match them to our
+  // four majors, so the user can pick by name instead of typing an ID.
+  const loadScheduleOptions = async (year: string = activeYear) => {
+    if (!apiKey) return;
+    setScheduleLoading(true);
+    try {
+      const schedule = await fetchTournamentSchedule(year);
+      const options: ScheduleOption[] = MAJOR_TOURNAMENTS.map((major) => {
+        const row = schedule ? findMajorScheduleRow(schedule, major) : null;
+        return {
+          key: major.aliases[0],
+          label: row?.name ? `${row.name} (${year})` : `${major.label} (${year})`,
+          tournId: row?.tournId || major.fallbackTournId,
+          year,
+          live: !!row,
+        };
+      });
+      setScheduleOptions(options);
+    } catch (e) {
+      console.error('Failed to load schedule options:', e);
+    } finally {
+      setScheduleLoading(false);
+    }
+  };
+
+  // Auto-load the allowed tournament names whenever the config modal opens with
+  // an API key present, and refresh if the active year changes.
+  useEffect(() => {
+    if (showApiConfig && apiKey) {
+      loadScheduleOptions(activeYear);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showApiConfig, apiKey, activeYear]);
+
+  // Set the tournament override from an auto-discovered option (or clear it to
+  // fall back to the selected tournament) and persist the choice.
+  const selectTournamentOption = (value: string) => {
+    setTournamentApiId(value);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('slashgolf_tournament_id', value);
+    }
+  };
 
   // ── Year Rollover ──────────────────────────────────────────────────────
   const seedNewYearTournaments = async (year: number) => {
@@ -1591,35 +1656,59 @@ const GolfMajorPool = () => {
                       </div>
                       
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Tournament ID
-                        </label>
-                        <input
-                          type="text"
-                          value={tournamentApiId}
-                          onChange={(e) => {
-                            setTournamentApiId(e.target.value);
-                            if (typeof window !== 'undefined') {
-                              localStorage.setItem('slashgolf_tournament_id', e.target.value);
-                            }
-                          }}
-                          placeholder="e.g. us-open-2026, masters-2026, pga-championship-2026"
-                          className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-base text-gray-900 bg-white placeholder-gray-500"
-                        />
-                        <div className="text-xs text-gray-600 mt-1">
-                          <strong>Format:</strong> tournament-year or tournId-year<br/>
-                          <strong>Majors:</strong> "masters-2026", "pga-championship-2026", "us-open-2026", "open-championship-2026"<br/>
-                          <strong>Numeric:</strong> "026-2026" (use the tournId directly)<br/>
-                          <strong>Tip:</strong> Click "Show Schedule" to see available tournament IDs
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="block text-sm font-medium text-gray-700">
+                            Tournament {scheduleLoading && <span className="text-xs text-gray-400">(loading…)</span>}
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => loadScheduleOptions(activeYear)}
+                            disabled={!apiKey || scheduleLoading}
+                            className="text-xs text-blue-600 hover:text-blue-800 disabled:text-gray-400"
+                          >
+                            ⟳ Refresh
+                          </button>
                         </div>
+                        <select
+                          value={tournamentApiId}
+                          onChange={(e) => selectTournamentOption(e.target.value)}
+                          className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-base text-gray-900 bg-white"
+                        >
+                          <option value="">
+                            Auto — use selected tournament{selectedTournament ? ` (${selectedTournament})` : ''}
+                          </option>
+                          {scheduleOptions.map((opt) => (
+                            <option key={opt.key} value={`${opt.key}-${opt.year}`}>
+                              {opt.label}{opt.live ? '' : ' — default ID'}
+                            </option>
+                          ))}
+                        </select>
+                        <div className="text-xs text-gray-600 mt-1">
+                          {apiKey ? (
+                            <>Names are pulled automatically from the SlashGolf schedule for <strong>{activeYear}</strong>. Leave on <strong>Auto</strong> to follow whichever tournament is selected in the pool.</>
+                          ) : (
+                            <>Add your RapidAPI key above, then the allowed tournaments load automatically.</>
+                          )}
+                        </div>
+
+                        <details className="mt-2">
+                          <summary className="text-xs text-gray-500 cursor-pointer">Advanced: enter ID manually</summary>
+                          <input
+                            type="text"
+                            value={tournamentApiId}
+                            onChange={(e) => selectTournamentOption(e.target.value)}
+                            placeholder="e.g. us-open-2026 or 026-2026"
+                            className="w-full mt-2 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm text-gray-900 bg-white placeholder-gray-500"
+                          />
+                        </details>
                       </div>
                     </div>
-                    
+
                     <div className="bg-yellow-50 p-3 rounded-lg mt-4 mb-4">
                       <p className="text-xs text-yellow-800">
-                        <strong>Note:</strong> Your RapidAPI configuration will be stored locally in your browser. 
-                        Get your API key from <strong>RapidAPI → SlashGolf Live Golf Data</strong>. 
-                        The Tournament ID should be in format: tournament-year (e.g., "us-open-2025").
+                        <strong>Note:</strong> Your RapidAPI configuration is stored locally in your browser.
+                        Get your API key from <strong>RapidAPI → SlashGolf Live Golf Data</strong>.
+                        The tournament and year are configured automatically from the schedule — no manual ID needed.
                       </p>
                     </div>
                     
@@ -1638,7 +1727,7 @@ const GolfMajorPool = () => {
                           }
                           setShowApiConfig(false);
                         }}
-                        disabled={!apiKey || !tournamentApiId}
+                        disabled={!apiKey}
                         className="px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 text-base min-h-[44px]"
                       >
                         Save Configuration
@@ -1733,24 +1822,20 @@ const GolfMajorPool = () => {
                   <div className="bg-purple-50 p-3 sm:p-4 rounded-lg">
                     <h3 className="font-semibold mb-2 text-purple-800 text-sm sm:text-base">SlashGolf API Integration</h3>
                     <p className="text-xs sm:text-sm text-purple-600 mb-3">
-                      Configure RapidAPI settings to automatically fetch live scores for this tournament.
+                      Add your RapidAPI key once — the tournament and year are configured automatically
+                      from the schedule based on the tournament selected above.
                     </p>
                     <div className="flex items-center gap-4 mb-3">
-                      <label className="text-sm font-medium text-purple-800">
-                        Tournament API ID:
-                      </label>
-                      <input
-                        type="text"
-                        value={tournamentApiId}
-                        onChange={(e) => {
-                          setTournamentApiId(e.target.value);
-                          if (typeof window !== 'undefined') {
-                            localStorage.setItem('slashgolf_tournament_id', e.target.value);
-                          }
-                        }}
-                        placeholder="e.g. us-open-2025"
-                        className="flex-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 text-center text-gray-900 bg-white"
-                      />
+                      <span className="text-sm font-medium text-purple-800">
+                        Target tournament:
+                      </span>
+                      <span className="flex-1 px-3 py-2 border rounded-lg bg-white text-center text-gray-900 text-sm">
+                        {tournamentApiId
+                          ? `${tournamentApiId} (override)`
+                          : selectedTournament
+                            ? `${selectedTournament} (auto)`
+                            : 'Select a tournament above'}
+                      </span>
                       <button
                         onClick={() => setShowApiConfig(true)}
                         className="px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm"
@@ -1759,12 +1844,16 @@ const GolfMajorPool = () => {
                       </button>
                     </div>
                     <div className="text-xs text-gray-600 mb-2">
-                      <strong>Format:</strong> tournament-year<br/>
-                      <strong>Examples:</strong> masters-2025, pga-championship-2025, us-open-2025, british-open-2025
+                      Leave the override blank in <strong>Config API</strong> to follow the selected tournament,
+                      or pick a specific event from the auto-loaded list.
                     </div>
                     <div className="mt-3 p-2 sm:p-3 bg-purple-100 border border-purple-200 rounded">
                       <p className="text-xs text-purple-800">
-                        <strong>API Status:</strong> {(apiKey && tournamentApiId) ? '🔑 Ready to fetch live scores' : '❌ RapidAPI key or Tournament ID missing'}
+                        <strong>API Status:</strong> {!apiKey
+                          ? '❌ Add your RapidAPI key in Config API'
+                          : (tournamentApiId || selectedTournament)
+                            ? '🔑 Ready to fetch live scores'
+                            : '⚠️ Select a tournament to fetch scores'}
                       </p>
                     </div>
                   </div>
@@ -2040,13 +2129,13 @@ const GolfMajorPool = () => {
                                 setShowApiConfig(true);
                                 return;
                               }
-                              const schedule = await fetchTournamentSchedule(new Date().getFullYear().toString());
+                              const schedule = await fetchTournamentSchedule(activeYear);
                               if (schedule?.schedule) {
-                                console.log('Available tournaments for 2025:');
-                                schedule.schedule.forEach((t: any) => 
+                                console.log(`Available tournaments for ${activeYear}:`);
+                                schedule.schedule.forEach((t: any) =>
                                   console.log(`${t.name} → ID: ${t.tournId}`)
                                 );
-                                alert(`Check console for available tournaments. Found ${schedule.schedule.length} tournaments.`);
+                                alert(`Check console for available tournaments. Found ${schedule.schedule.length} tournaments for ${activeYear}.`);
                               }
                             }}
                             className="flex items-center gap-2 px-4 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 text-sm sm:text-base min-h-[44px]"
