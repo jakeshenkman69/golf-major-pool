@@ -52,6 +52,123 @@ type NewPlayer = {
   picks: Record<string, string>;
 };
 
+// Canonical configuration for the four men's majors.
+// `aliases` are the dash-normalized strings a user might type for the tournament
+// part of the Tournament API ID (e.g. "us-open-2026" -> "us-open").
+// `namePatterns` are normalized substrings used to match the SlashGolf schedule
+// name. `fallbackTournId` is only used if the schedule lookup fails entirely.
+type MajorConfig = {
+  key: string;
+  label: string;
+  aliases: string[];
+  namePatterns: string[];
+  fallbackTournId: string;
+};
+
+const MAJOR_TOURNAMENTS: MajorConfig[] = [
+  {
+    key: 'masters',
+    label: 'Masters Tournament',
+    aliases: ['masters', 'the-masters', 'masters-tournament'],
+    namePatterns: ['masters'],
+    fallbackTournId: '014',
+  },
+  {
+    key: 'pga-championship',
+    label: 'PGA Championship',
+    aliases: ['pga', 'pga-championship', 'us-pga', 'us-pga-championship', 'uspga'],
+    namePatterns: ['pga championship'],
+    fallbackTournId: '033',
+  },
+  {
+    key: 'us-open',
+    label: 'U.S. Open',
+    // Note: "us-openchampionship" is a common mistyping of the U.S. Open.
+    // The British Open's formal name is "The Open Championship" (see below),
+    // so we deliberately route the "us-open..." variants to the U.S. Open.
+    aliases: [
+      'us-open',
+      'usopen',
+      'u-s-open',
+      'us-open-championship',
+      'us-openchampionship',
+      'united-states-open',
+    ],
+    namePatterns: ['us open'],
+    fallbackTournId: '026',
+  },
+  {
+    key: 'open-championship',
+    label: 'The Open Championship',
+    aliases: [
+      'open-championship',
+      'the-open',
+      'the-open-championship',
+      'british-open',
+      'the-british-open',
+      'open',
+    ],
+    namePatterns: ['open championship', 'british open'],
+    fallbackTournId: '100',
+  },
+];
+
+// Normalize a tournament name (from the API schedule) for comparison:
+// lowercase, drop punctuation like the dots in "U.S. Open", collapse whitespace.
+const normalizeTournamentName = (name: string): string =>
+  (name || '')
+    .toLowerCase()
+    .replace(/[.,'’]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+
+// Normalize the user-entered tournament part to a dash-delimited alias key.
+const normalizeAliasKey = (part: string): string =>
+  (part || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+
+// Resolve a user-entered tournament part (e.g. "us-openchampionship") to a major.
+const resolveMajorTournament = (tournamentPart: string): MajorConfig | null => {
+  const key = normalizeAliasKey(tournamentPart);
+  if (!key) return null;
+
+  // 1) Exact alias match.
+  for (const major of MAJOR_TOURNAMENTS) {
+    if (major.aliases.includes(key)) return major;
+  }
+
+  // 2) Dash-insensitive alias match (e.g. "usopen" vs "us-open").
+  const collapsed = key.replace(/-/g, '');
+  for (const major of MAJOR_TOURNAMENTS) {
+    if (major.aliases.some((a) => a.replace(/-/g, '') === collapsed)) return major;
+  }
+
+  return null;
+};
+
+// Given the SlashGolf schedule and a resolved major, find the matching tournId.
+// Prefers an exact normalized-name match, then a precise substring match, so we
+// never latch onto an unrelated event (e.g. a regular Tour "Open").
+const findTournIdInSchedule = (schedule: any, major: MajorConfig): string | null => {
+  const rows: any[] = schedule?.schedule || [];
+  if (rows.length === 0) return null;
+
+  const matchesPattern = (name: string, exactOnly: boolean): boolean => {
+    const n = normalizeTournamentName(name);
+    return major.namePatterns.some((p) => (exactOnly ? n === p : n.includes(p)));
+  };
+
+  const exact = rows.find((t: any) => matchesPattern(t.name, true));
+  if (exact?.tournId) return exact.tournId;
+
+  const partial = rows.find((t: any) => matchesPattern(t.name, false));
+  if (partial?.tournId) return partial.tournId;
+
+  return null;
+};
+
 const GolfMajorPool = () => {
   const [golfers, setGolfers] = useState<Golfer[]>([]);
   const [tiers, setTiers] = useState<TierData>({
@@ -642,36 +759,35 @@ const GolfMajorPool = () => {
         if (/^\d+$/.test(tournamentPart)) {
           tournId = tournamentPart;
         } else {
-          const schedule = await fetchTournamentSchedule(year);
-          
-          if (schedule?.schedule) {
-            const tournament = schedule.schedule.find((t: any) => 
-              t.name.toLowerCase().includes(tournamentPart.replace(/-/g, ' '))
+          // Resolve the typed name (e.g. "us-open", "us-openchampionship") to a
+          // known major so we never silently pull the wrong tournament.
+          const major = resolveMajorTournament(tournamentPart);
+
+          if (!major) {
+            const valid = MAJOR_TOURNAMENTS
+              .map((m) => `${m.aliases[0]}-${year}`)
+              .join(', ');
+            throw new Error(
+              `Unrecognized tournament "${tournamentPart}". ` +
+              `Use one of: ${valid} — or a numeric ID like "026-${year}".`
             );
-            
-            if (tournament) {
-              tournId = tournament.tournId;
-              console.log(`Found tournament: ${tournament.name} → ID: ${tournId}`);
-            } else {
-              const tournamentMap: Record<string, string> = {
-                'masters': '014',
-                'pga-championship': '003',
-                'us-open': '006',
-                'open-championship': '100',
-                'british-open': '100'
-              };
-              
-              const mapKey = tournamentPart.toLowerCase();
-              
-              if (tournamentMap[mapKey]) {
-                tournId = tournamentMap[mapKey];
-                console.log(`Using fallback mapping: ${tournamentPart} → ${tournId}`);
-              } else {
-                throw new Error(`Tournament "${tournamentPart}" not found in schedule. Available tournaments: ${schedule.schedule.map((t: any) => t.name).join(', ')}`);
-              }
-            }
+          }
+
+          console.log(`Resolved "${tournamentPart}" → ${major.label} (${major.key})`);
+
+          const schedule = await fetchTournamentSchedule(year);
+          const scheduleTournId = schedule ? findTournIdInSchedule(schedule, major) : null;
+
+          if (scheduleTournId) {
+            tournId = scheduleTournId;
+            console.log(`Found ${major.label} in ${year} schedule → ID: ${tournId}`);
           } else {
-            throw new Error(`Could not fetch tournament schedule. Please use numeric tournament ID format: "006-2025"`);
+            // Schedule unavailable or major not listed yet — use the canonical ID.
+            tournId = major.fallbackTournId;
+            console.log(
+              `${major.label} not found in ${year} schedule; ` +
+              `using canonical tournId: ${tournId}`
+            );
           }
         }
       } else {
@@ -1487,12 +1603,13 @@ const GolfMajorPool = () => {
                               localStorage.setItem('slashgolf_tournament_id', e.target.value);
                             }
                           }}
-                          placeholder="e.g. us-open-2025, masters-2025, pga-championship-2025"
+                          placeholder="e.g. us-open-2026, masters-2026, pga-championship-2026"
                           className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-base text-gray-900 bg-white placeholder-gray-500"
                         />
                         <div className="text-xs text-gray-600 mt-1">
                           <strong>Format:</strong> tournament-year or tournId-year<br/>
-                          <strong>Examples:</strong> "us-open-2025", "masters-2025", or "006-2025"<br/>
+                          <strong>Majors:</strong> "masters-2026", "pga-championship-2026", "us-open-2026", "open-championship-2026"<br/>
+                          <strong>Numeric:</strong> "026-2026" (use the tournId directly)<br/>
                           <strong>Tip:</strong> Click "Show Schedule" to see available tournament IDs
                         </div>
                       </div>
