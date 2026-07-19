@@ -167,6 +167,33 @@ const findMajorScheduleRow = (schedule: any, major: MajorConfig): any | null => 
   );
 };
 
+// A golfer who didn't finish the tournament (missed cut, withdrew, or was
+// disqualified) is credited with their real strokes for any round they
+// actually completed, and a par+8 penalty for that round onward once we hit
+// a round with no valid completed score (null, or a partial/in-progress
+// strokes count from a withdrawal). 60-90 is the same "looks like a real
+// finished round" range used elsewhere for in-progress round promotion.
+const applyIncompleteTournamentPenalty = (
+  rounds: (number | null)[],
+  par: number
+): (number | null)[] => {
+  const penaltyScore = par + 8;
+  const isValidCompletedRound = (r: number | null): boolean =>
+    r !== null && r >= 60 && r <= 90;
+
+  const result = [...rounds];
+  let penalizing = false;
+  for (let i = 0; i < result.length; i++) {
+    if (!penalizing && !isValidCompletedRound(result[i])) {
+      penalizing = true;
+    }
+    if (penalizing) {
+      result[i] = penaltyScore;
+    }
+  }
+  return result;
+};
+
 const GolfMajorPool = () => {
   const [golfers, setGolfers] = useState<Golfer[]>([]);
   const [tiers, setTiers] = useState<TierData>({
@@ -307,11 +334,8 @@ const GolfMajorPool = () => {
       const scoresMap: Record<string, ScoreData> = {};
       scoresData?.forEach((score: any) => {
         if (!score.made_cut) {
-          const rounds = [...(score.rounds || [null, null, null, null])];
-          const penaltyScore = tournamentPar + 8;
-          rounds[2] = penaltyScore;
-          rounds[3] = penaltyScore;
-          
+          const rounds = applyIncompleteTournamentPenalty(score.rounds || [null, null, null, null], tournamentPar);
+
           const totalScore = rounds.reduce((sum: number, round: number | null) => sum + (round || 0), 0);
           const actualRounds = rounds.filter((r: number | null) => r !== null).length;
           const toPar = totalScore - (tournamentPar * 4);
@@ -680,12 +704,10 @@ const GolfMajorPool = () => {
       const scoreUpdates: any[] = [];
       
       Object.entries(editingScores).forEach(([golferName, scoreData]: [string, any]) => {
-        const rounds = scoreData.rounds?.map((r: number | null | string) => r === '' || r === null ? null : parseInt(r as string)) || [null, null, null, null];
-        
+        let rounds = scoreData.rounds?.map((r: number | null | string) => r === '' || r === null ? null : parseInt(r as string)) || [null, null, null, null];
+
         if (scoreData.madeCut === false) {
-          const penaltyScore = currentPar + 8;
-          rounds[2] = penaltyScore;
-          rounds[3] = penaltyScore;
+          rounds = applyIncompleteTournamentPenalty(rounds, currentPar);
         }
 
         scoreUpdates.push({
@@ -913,7 +935,7 @@ const GolfMajorPool = () => {
         
         console.log('Matched player:', fullName, '→', golferName);
         
-        const rounds: (number | null)[] = [null, null, null, null];
+        let rounds: (number | null)[] = [null, null, null, null];
         if (player.rounds && Array.isArray(player.rounds)) {
           player.rounds.forEach((round: any) => {
             const roundId = extractNumber(round.roundId || 1);
@@ -927,11 +949,12 @@ const GolfMajorPool = () => {
         }
 
         const madeCut = player.status !== 'cut' && player.status !== 'wd' && player.status !== 'dq';
-        
+
         if (!madeCut) {
-          const penaltyScore = currentPar + 8;
-          rounds[2] = rounds[2] || penaltyScore;
-          rounds[3] = rounds[3] || penaltyScore;
+          // A withdrawal/DQ can happen mid-round, in which case the API's
+          // "strokes" for that round is a partial count, not a finished
+          // score — treat that round (and everything after it) as unplayed.
+          rounds = applyIncompleteTournamentPenalty(rounds, currentPar);
         }
 
         const currentHole = extractNumber(player.currentHole);
@@ -1361,14 +1384,11 @@ const GolfMajorPool = () => {
         let toPar = score.toPar;
         
         if (!score.madeCut) {
-          const rounds = [...score.rounds];
-          const penaltyScore = currentPar + 8;
-          rounds[2] = penaltyScore;
-          rounds[3] = penaltyScore;
+          const rounds = applyIncompleteTournamentPenalty(score.rounds, currentPar);
           const totalScore = rounds.reduce((sum: number, round: number | null) => sum + (round || 0), 0);
           toPar = totalScore - (currentPar * 4);
         }
-        
+
         return {
           name: golferName,
           toPar: toPar,
@@ -1956,10 +1976,7 @@ const GolfMajorPool = () => {
                         if (!score) return { name: golferName, toPar: null, status: 'No score' };
                         
                         if (!score.madeCut) {
-                          const rounds = [...score.rounds];
-                          const penaltyScore = currentPar + 8;
-                          rounds[2] = penaltyScore;
-                          rounds[3] = penaltyScore;
+                          const rounds = applyIncompleteTournamentPenalty(score.rounds, currentPar);
                           const cutScore = rounds.reduce((sum: number, round: number | null) => sum + (round || 0), 0);
                           return {
                             name: golferName,
@@ -2340,9 +2357,7 @@ const GolfMajorPool = () => {
                                       onChange={(e) => {
                                         updateGolferScore(golfer.name, 'madeCut', e.target.checked);
                                         if (!e.target.checked) {
-                                          const newRounds = [...editing.rounds];
-                                          newRounds[2] = currentPar + 8;
-                                          newRounds[3] = currentPar + 8;
+                                          const newRounds = applyIncompleteTournamentPenalty(editing.rounds, currentPar);
                                           updateGolferScore(golfer.name, 'rounds', newRounds);
                                         }
                                       }}
