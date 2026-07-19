@@ -683,7 +683,7 @@ const GolfMajorPool = () => {
         const rounds = scoreData.rounds?.map((r: number | null | string) => r === '' || r === null ? null : parseInt(r as string)) || [null, null, null, null];
         
         if (scoreData.madeCut === false) {
-          const penaltyScore = currentPar;
+          const penaltyScore = currentPar + 8;
           rounds[2] = penaltyScore;
           rounds[3] = penaltyScore;
         }
@@ -929,7 +929,7 @@ const GolfMajorPool = () => {
         const madeCut = player.status !== 'cut' && player.status !== 'wd' && player.status !== 'dq';
         
         if (!madeCut) {
-          const penaltyScore = currentPar;
+          const penaltyScore = currentPar + 8;
           rounds[2] = rounds[2] || penaltyScore;
           rounds[3] = rounds[3] || penaltyScore;
         }
@@ -1362,7 +1362,7 @@ const GolfMajorPool = () => {
         
         if (!score.madeCut) {
           const rounds = [...score.rounds];
-          const penaltyScore = currentPar;
+          const penaltyScore = currentPar + 8;
           rounds[2] = penaltyScore;
           rounds[3] = penaltyScore;
           const totalScore = rounds.reduce((sum: number, round: number | null) => sum + (round || 0), 0);
@@ -1957,7 +1957,7 @@ const GolfMajorPool = () => {
                         
                         if (!score.madeCut) {
                           const rounds = [...score.rounds];
-                          const penaltyScore = currentPar;
+                          const penaltyScore = currentPar + 8;
                           rounds[2] = penaltyScore;
                           rounds[3] = penaltyScore;
                           const cutScore = rounds.reduce((sum: number, round: number | null) => sum + (round || 0), 0);
@@ -2341,8 +2341,8 @@ const GolfMajorPool = () => {
                                         updateGolferScore(golfer.name, 'madeCut', e.target.checked);
                                         if (!e.target.checked) {
                                           const newRounds = [...editing.rounds];
-                                          newRounds[2] = currentPar;
-                                          newRounds[3] = currentPar;
+                                          newRounds[2] = currentPar + 8;
+                                          newRounds[3] = currentPar + 8;
                                           updateGolferScore(golfer.name, 'rounds', newRounds);
                                         }
                                       }}
