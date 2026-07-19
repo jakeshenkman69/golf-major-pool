@@ -2365,7 +2365,8 @@ const GolfMajorPool = () => {
                                       onChange={(e) => {
                                         updateGolferScore(golfer.name, 'madeCut', e.target.checked);
                                         if (!e.target.checked) {
-                                          const newRounds = applyIncompleteTournamentPenalty(editing.rounds, currentPar);
+                                          const parsedRounds = editing.rounds.map((r: number | null | string) => r === '' || r === null ? null : parseInt(r as string));
+                                          const newRounds = applyIncompleteTournamentPenalty(parsedRounds, currentPar);
                                           updateGolferScore(golfer.name, 'rounds', newRounds);
                                         }
                                       }}
