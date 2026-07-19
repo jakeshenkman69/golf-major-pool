@@ -951,17 +951,12 @@ const GolfMajorPool = () => {
         const madeCut = player.status !== 'cut' && player.status !== 'wd' && player.status !== 'dq';
 
         if (!madeCut) {
-          // TEMP DEBUG: dump the full raw player object for anyone who
-          // missed the cut / withdrew / was DQ'd, so we can see every field
-          // the API actually sends (not just roundId/strokes) and find a
-          // reliable signal for which round a WD/DQ happened in, instead of
-          // guessing from a strokes-value range. Remove once we've captured
-          // a real example and built an exact fix.
-          console.log(`🚑 RAW PLAYER OBJECT for ${golferName} (status: ${player.status}):`, JSON.stringify(player, null, 2));
-
-          // A withdrawal/DQ can happen mid-round, in which case the API's
-          // "strokes" for that round is a partial count, not a finished
-          // score — treat that round (and everything after it) as unplayed.
+          // A withdrawal/DQ can happen mid-round. The API omits the round
+          // entry entirely for a round the player didn't finish (confirmed
+          // via a real WD case: only completed rounds appear in
+          // player.rounds[], so an in-progress round just leaves that index
+          // null rather than sending a partial strokes count) — so treat
+          // that round (and everything after it) as unplayed.
           rounds = applyIncompleteTournamentPenalty(rounds, currentPar);
         }
 
